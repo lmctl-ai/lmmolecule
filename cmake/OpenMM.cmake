@@ -72,7 +72,7 @@ target_compile_definitions(openmm PUBLIC
   IEEE_8087
 )
 if(WIN32)
-  target_compile_definitions(openmm PUBLIC WIN32 _copysign=std::copysign)
+  target_compile_definitions(openmm PUBLIC WIN32 POCKETFFT_NO_VECTORS _copysign=std::copysign)
 endif()
 
 # Disable dynamic plugin dlopen/dlsym in static builds.
@@ -86,16 +86,18 @@ if(_OMM_ARCH MATCHES "aarch64|AARCH64|arm64|ARM64")
   target_compile_definitions(openmm PUBLIC __ARM64__=1)
 elseif(_OMM_ARCH MATCHES "x86_64|AMD64|amd64|i686|i386")
   target_compile_options(openmm PRIVATE -msse4.1)
-  set_source_files_properties(
-    "${OMM_DIR}/platforms/cpu/src/CpuNonbondedForceAvx.cpp"
-    "${OMM_DIR}/platforms/cpu/src/CpuCustomNonbondedForceAvx.cpp"
-    PROPERTIES COMPILE_OPTIONS "-mavx"
-  )
+  if(NOT WIN32)
+    set_source_files_properties(
+      "${OMM_DIR}/platforms/cpu/src/CpuNonbondedForceAvx.cpp"
+      "${OMM_DIR}/platforms/cpu/src/CpuCustomNonbondedForceAvx.cpp"
+      PROPERTIES COMPILE_OPTIONS "-mavx"
+    )
+  endif()
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(openmm PRIVATE
-    -include stdint.h
+    -include "${CMAKE_CURRENT_SOURCE_DIR}/cmake/openmm_shim.h"
     -Wno-register
     -Wno-write-strings
     -Wno-deprecated-declarations
