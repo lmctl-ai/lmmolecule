@@ -95,6 +95,7 @@ endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(openmm PRIVATE
+    -include stdint.h
     -Wno-register
     -Wno-write-strings
     -Wno-deprecated-declarations
