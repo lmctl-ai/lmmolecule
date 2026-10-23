@@ -38,8 +38,12 @@ for (k in range(0, int(n_mol))) {
 md.print("pe_per_molecule " + str(pe_mol));
 end _dsl_
 savedsl(sim_prog, "build/stories/water_box-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/water_box-sim.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+# The CPU simulation and the CAD render both exceed 60 s on slow Intel runners.
+sim_argv = dsl_cli(sim_prog);
+push(sim_argv, "--dsl");
+push(sim_argv, "build/stories/water_box-sim.dslb");
+r = system(sim_argv, 300000);
+assert(r.code == 0, "water-box simulation exit " + str(r.code) + ": " + r.stdout + r.stderr);
 csv = split(split(r.stdout, "pe_per_molecule")[0], "{\"ok\"")[0];
 write_file("build/stories/water_atoms.csv", csv);
 pe_line = split(r.stdout, "pe_per_molecule ")[1];
@@ -92,7 +96,7 @@ render_argv = dsl_cli(render);
 push(render_argv, "--dsl");
 push(render_argv, "build/stories/water_box-render.dslb");
 r = system(render_argv, 300000);
-assert(r.code == 0, r.stdout + r.stderr);
+assert(r.code == 0, "water-box CAD render exit " + str(r.code) + ": " + r.stdout + r.stderr);
 
 draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("docs/images/water_box.png", 1000, 760);
