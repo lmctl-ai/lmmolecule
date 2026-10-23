@@ -5,6 +5,8 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -23,12 +25,14 @@
 #include "OpenMM.h"
 #include "SimTKOpenMMRealType.h"
 #include "SimTKOpenMMUtilities.h"
+#include "openmm/internal/NonbondedForceImpl.h"
 #include "lepton/ExpressionTreeNode.h"
 #include "lepton/Operation.h"
 #include "lepton/ParsedExpression.h"
 #include "lepton/Parser.h"
 
 #include "dslvm.hpp"
+#include "memory_budget.hpp"
 #include "notices_embedded.hpp"
 #include "schema_embedded.hpp"
 
@@ -212,6 +216,9 @@ struct SimObj {
   std::unique_ptr<OpenMM::Context> ctx;
   int mobile_particles = 0;
   int64_t total_steps = 0;
+  // PME work memory OpenMM mallocs (outside operator new) at every force evaluation of this Sim.
+  std::size_t charged = 0;
+  ~SimObj() { membudget::release(charged); }
 
   std::string report_path;
   int64_t report_every = 0;
@@ -358,6 +365,20 @@ void need_sim_particle(const SimObj &sim, int64_t i, const char *who) {
                        std::to_string(n - 1));
 }
 
+// Bulk builders (fcc, rocksalt, gas, load_xyz) may be called repeatedly on one System: cap the total
+// (OpenMM indexes particles with int) and check the budget before growing the particle vector.
+constexpr int64_t kMaxParticles = 10000000;
+void need_room(SystemSpec &s, int64_t add, const char *who) {
+  int64_t total = (int64_t)s.particles.size() + add;
+  if (total > kMaxParticles)
+    throw dslvm::Error(std::string(who) + ": system would have " + std::to_string(total) +
+                       " particles (at most " + std::to_string(kMaxParticles) + ")");
+  if ((std::size_t)total > s.particles.capacity()) {
+    membudget::require(std::size_t(total) * sizeof(ParticleSpec));
+    s.particles.reserve(std::max<std::size_t>(std::size_t(total), 2 * s.particles.capacity()));
+  }
+}
+
 double uniform01(std::mt19937_64 &rng) {
   return (double)(rng() >> 11) * (1.0 / 9007199254740992.0);
 }
@@ -489,6 +510,23 @@ std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &pla
       double eps = p.has_lj ? p.lj_eps : (spec.has_lj ? spec.default_lj_eps : 0.0);
       double sig = p.has_lj ? p.lj_sigma : (spec.has_lj ? spec.default_lj_sigma : 0.1);
       nb->addParticle(p.charge, sig, eps);
+    }
+    if (nb_method == OpenMM::NonbondedForce::PME) {
+      // ReferencePME (both platforms) mallocs the complex grid and per-particle B-spline tables at
+      // every force evaluation and dereferences them unchecked: size them here and count them for
+      // the life of the Sim, so an oversized grid (big box, small cutoff) is a run error.
+      double alpha = 0.0;
+      int nx = 0, ny = 0, nz = 0;
+      OpenMM::NonbondedForceImpl::calcPMEParameters(*sim->sys, *nb, alpha, nx, ny, nz, false);
+      double cells = (double)nx * (double)ny * (double)nz;
+      if (cells > 2147483647.0)
+        throw dslvm::Error("System.sim: PME grid " + std::to_string(nx) + "x" + std::to_string(ny) + "x" +
+                           std::to_string(nz) + " is too large (use a larger cutoff or a smaller box)");
+      std::size_t n = spec.particles.size();
+      std::size_t bytes = std::size_t(cells) * 16 + n * (2 * 3 * 5 * 8 + 3 * 8 + 3 * 4) +
+                          std::size_t(nx + ny + nz) * 8;
+      membudget::charge(bytes);
+      sim->charged = bytes;
     }
     for (const auto &ex : spec.exclusions) {
       nb->addException(ex.first, ex.second, 0.0, 0.1, 0.0, true);
@@ -680,6 +718,7 @@ void register_host(dslvm::Registry &r, Host &h) {
         {0.5, 0.0, 0.5},
         {0.5, 0.5, 0.0},
     };
+    need_room(S(p), 4 * n * n * n, "System.fcc");
     double L = (double)n * lat;
     S(p).has_box = true;
     S(p).box_a = L;
@@ -716,6 +755,7 @@ void register_host(dslvm::Registry &r, Host &h) {
         {0.0, 0.0, 0.0}, {0.0, 0.5, 0.5}, {0.5, 0.0, 0.5}, {0.5, 0.5, 0.0},
         {0.5, 0.0, 0.0}, {0.0, 0.5, 0.0}, {0.0, 0.0, 0.5}, {0.5, 0.5, 0.5},
     };
+    need_room(S(p), 8 * n * n * n, "System.rocksalt");
     double L = (double)n * lat;
     S(p).has_box = true;
     S(p).box_a = L;
@@ -748,6 +788,7 @@ void register_host(dslvm::Registry &r, Host &h) {
     if (n < 1 || n > 50000) throw dslvm::Error("System.gas: particle count n must be in 1..50000");
     if (!(box > 0.0) || !std::isfinite(box)) throw dslvm::Error("System.gas: box size must be positive");
     if (!(mass >= 0.0) || !std::isfinite(mass)) throw dslvm::Error("System.gas: mass must be non-negative");
+    need_room(S(p), n, "System.gas");
     S(p).has_box = true;
     S(p).box_a = box;
     S(p).box_b = box;
@@ -800,6 +841,7 @@ void register_host(dslvm::Registry &r, Host &h) {
     } catch (...) {
       throw dslvm::Error("System.load_xyz: bad atom count in " + a[0].s);
     }
+    need_room(S(p), n, "System.load_xyz");
     for (int i = 0; i < n; i++) {
       std::string line;
       if (!std::getline(f, line))
@@ -973,6 +1015,8 @@ void register_host(dslvm::Registry &r, Host &h) {
     if (!(a[0].f >= 0.0) || !std::isfinite(a[0].f) || a[1].i < 0)
       throw dslvm::Error("Sim.minimize: tolerance and max iterations must be non-negative");
     if (a[1].i > 100000000) throw dslvm::Error("Sim.minimize: max iterations must be at most 100000000");
+    // L-BFGS takes its work vectors (history m = 6: about 18 vectors of 3N doubles) with malloc.
+    membudget::require(std::size_t(18) * 3 * SIM(p).spec.particles.size() * sizeof(double));
     OpenMM::LocalEnergyMinimizer::minimize(*SIM(p).ctx, a[0].f, (int)a[1].i);
     SIM(p).check_finite("Sim.minimize");
     return Value::object("Sim", p);
@@ -1137,7 +1181,29 @@ void register_host(dslvm::Registry &r, Host &h) {
 }
 
 const char *usage =
-    "usage: lmmolecule --version | --notices | --dsl-schema [--json] | --dsl-signatures | [--dry-run] --dsl FILE [FILE ...]\n";
+    "usage: lmmolecule --version | --notices | --dsl-schema [--json] | --dsl-signatures | [--dry-run] --dsl FILE [FILE ...]\n"
+    "environment: LMMOLECULE_MAX_MEMORY_MB  total memory budget in MiB (default 4096); a program that needs more\n"
+    "             stops with a run error (exit 3) instead of allocating\n";
+
+// The CPU platform computes forces on OpenMM's worker thread (ThreadPool, even with Threads=1), whose
+// thread body has no handler: the budget running out there (say, while the neighbour list grows) ends
+// in std::terminate. Report that like any run error (JSON line, exit 3) instead of aborting.
+std::terminate_handler previous_terminate = nullptr;
+[[noreturn]] void on_terminate() {
+  if (std::exception_ptr ep = std::current_exception()) {
+    try {
+      std::rethrow_exception(ep);
+    } catch (const membudget::Exceeded &e) {
+      dslvm::report_error("run", dslvm::Error(e.what()));
+      std::cout.flush();
+      std::cerr.flush();
+      std::_Exit(3);
+    } catch (...) {
+    }
+  }
+  if (previous_terminate) previous_terminate();
+  std::abort();
+}
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -1208,6 +1274,11 @@ int main(int argc, char **argv) {
     return 2;
   }
 
+  if (!membudget::configure("lmmolecule", "LMMOLECULE_MAX_MEMORY_MB")) {
+    std::cerr << usage;
+    return 2;
+  }
+  previous_terminate = std::set_terminate(on_terminate);
   const std::string schema(reinterpret_cast<const char *>(lmmolecule::embedded_schema),
                            lmmolecule::embedded_schema_size);
   dslvm::Context context;
@@ -1218,6 +1289,8 @@ int main(int argc, char **argv) {
       programs.push_back(dslvm::Program::load(dslvm::read_file(file), schema, reg));
     } catch (const dslvm::Error &e) {
       return dslvm::report_error("load", e);
+    } catch (const std::exception &e) {
+      return dslvm::report_error("load", dslvm::Error(e.what()));
     }
   }
   if (dry) {
@@ -1229,6 +1302,8 @@ int main(int argc, char **argv) {
       p.run(context, reg);
     } catch (const dslvm::Error &e) {
       return dslvm::report_error("run", e);
+    } catch (const std::exception &e) {
+      return dslvm::report_error("run", dslvm::Error(e.what()));  // budget in the VM
     }
     dslvm::report_ok();
   }

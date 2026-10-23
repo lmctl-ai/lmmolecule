@@ -125,7 +125,52 @@ expect_error nanconst 'let x = md.eval("sqrt(-1)");' "constant sub-expression is
 expect_error reserved 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).custom_external("k*x^2", "x=1.0");' "is reserved"
 expect_error ommclash 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).custom_external("k*x^2", "k=1.0").custom_external("k*y^2", "k=2.0").sim("verlet", 0.001, 0.0, 0.0, 1);' "different default values"
 expect_error cutclash 'let s = md.system().fcc(2, 0.6, 40.0).lj(1.0, 0.34, 0.5).coulomb("pme", 0.55).sim("verlet", 0.001, 0.0, 0.0, 1);' "share one cutoff"
-ok "errors stop the program with exit 3 and a clear message (17 cases)"
+expect_error pmegrid 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).charge(0, 1.0).box(200.0, 200.0, 200.0).coulomb("pme", 0.5).sim("verlet", 0.001, 0.0, 0.0, 1);' "PME grid 8772x8772x8772 is too large"
+ok "errors stop the program with exit 3 and a clear message (18 cases)"
+
+# Memory budget: a runaway allocation loop stops with a run error (exit 3, message on stderr and in
+# the JSON line) instead of exhausting the machine. A small budget everywhere; on Linux also the
+# default 4096 MiB under a 6 GiB address-space limit (ulimit only here, never in the host).
+budget_prog() { # name, snippet
+  cat >"$WORK/$1.lms" <<LMS
+p = _dsl_ cli="lmmolecule";
+$2
+end _dsl_
+savedsl(p, "$WORK/$1.dslb");
+LMS
+  "$LMSCRIPT" "$WORK/$1.lms" >/dev/null || fail "$1.lms compile"
+}
+expect_budget() { # name, MiB, what
+  set +e; out="$(LMMOLECULE_MAX_MEMORY_MB=$2 "$HOST" --dsl "$WORK/$1.dslb" 2>"$WORK/$1.err")"; code=$?; set -e
+  [ "$code" = 3 ] || fail "$3 under LMMOLECULE_MAX_MEMORY_MB=$2: exit $code, expected 3 ($out)"
+  echo "$out" | grep -q "memory budget exceeded" || fail "$3: JSON lacks the budget message: $out"
+  grep -q "LMMOLECULE_MAX_MEMORY_MB" "$WORK/$1.err" || fail "$3: no budget message on stderr"
+}
+# 108000 particles (13 MiB) per System, kept in the arena until exit.
+budget_prog runaway 'let i = 0;
+while (i < 1000000) {
+  let s = md.system().fcc(30, 0.5, 1.0);
+  i = i + 1;
+}'
+expect_budget runaway 64 "runaway loop"
+# CPU platform: a dense cluster in a large box makes the neighbour list (built on OpenMM's worker
+# thread) far larger than the particle data; the failure there must still be a clean run error.
+budget_prog cpunbl 'md.platform("cpu");
+let s = md.system().fcc(20, 0.05, 40.0).box(20.0, 20.0, 20.0).lj(0.0, 0.34, 1.5).sim("verlet", 0.001, 0.0, 0.0, 1);
+let e = s.pe();'
+expect_budget cpunbl 256 "CPU neighbour list"
+# PME grid malloc'd by OpenMM (439^3 complex, 1291 MiB) is counted when the Sim is created.
+budget_prog pmebig 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).charge(0, 1.0).box(10.0, 10.0, 10.0).coulomb("pme", 0.5).sim("verlet", 0.001, 0.0, 0.0, 1);'
+expect_budget pmebig 1024 "PME grid"
+set +e; LMMOLECULE_MAX_MEMORY_MB=-5 "$HOST" --dsl "$WORK/runaway.dslb" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
+[ "$code" = 2 ] && grep -q "positive whole number" "$WORK/badenv.err" || fail "bad LMMOLECULE_MAX_MEMORY_MB: exit $code"
+if [ "$UNAME_S" = Linux ]; then
+  set +e; out="$(ulimit -v 6291456; "$HOST" --dsl "$WORK/runaway.dslb" 2>/dev/null)"; code=$?; set -e
+  [ "$code" = 3 ] && echo "$out" | grep -q "limit 4096 MiB" || fail "runaway loop with the default budget under ulimit -v 6 GiB: exit $code ($out)"
+  ok "memory budget: runaway, CPU neighbour list and PME grid stop at small budgets; runaway stops at the default 4096 MiB (under ulimit -v 6 GiB)"
+else
+  ok "memory budget: runaway, CPU neighbour list and PME grid stop at small budgets (default-budget run is Linux-only)"
+fi
 
 # Combined pipeline (lmmolecule computes, lmplot draws). Needs lmplot on PATH, or network for install=.
 if command -v lmplot >/dev/null 2>&1 || [ "${LMMOLECULE_TEST_NETWORK:-}" = 1 ]; then

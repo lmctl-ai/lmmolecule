@@ -24,7 +24,7 @@ file(WRITE "${GEN}/notices_embedded.hpp" "#pragma once\n#include <cstddef>\nname
 
 include(cmake/OpenMM.cmake)
 
-add_executable(lmmolecule cpp/main.cpp)
+add_executable(lmmolecule cpp/main.cpp cpp/memory_budget.cpp)
 target_compile_definitions(lmmolecule PRIVATE LMMOLECULE_VERSION="${PROJECT_VERSION}")
 target_include_directories(lmmolecule PRIVATE cpp "${GEN}")
 target_link_libraries(lmmolecule PRIVATE openmm)

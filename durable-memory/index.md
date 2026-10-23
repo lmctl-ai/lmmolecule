@@ -8,3 +8,4 @@
 - `06-ci.md` — GitHub Actions and releases.
 - `07-examples.md` — the example programs and physics validation oracles.
 - `08-open-items.md` — what is not done.
+- `09-resource-limits.md` — total memory budget (`LMMOLECULE_MAX_MEMORY_MB`), what OpenMM memory is counted and how.

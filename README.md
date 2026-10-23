@@ -96,6 +96,13 @@ cmake -S . -B build && cmake --build build
 Linux builds are fully static; macOS links only system libraries; Windows links the MinGW runtime
 statically. `lmmolecule --notices` prints the license texts of everything inside.
 
+## Resource limits
+
+A program may use at most 4096 MiB in total (systems, simulation contexts, neighbour lists, PME grids,
+everything the host keeps); beyond that it stops with a run error (exit 3) naming the limit, instead of
+exhausting the machine. Set `LMMOLECULE_MAX_MEMORY_MB` to change it, e.g.
+`LMMOLECULE_MAX_MEMORY_MB=16384 lmscript big.lms`.
+
 ## License
 
 MIT ([LICENSE](LICENSE)). OpenMM Core/Reference/CPU/Lepton are MIT/BSD/public-domain, PocketFFT is
