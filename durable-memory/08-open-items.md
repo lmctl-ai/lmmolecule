@@ -11,3 +11,9 @@
   helpers returning CSV tables.
 - Host objects live in arenas until the process exits; a `release()` method would help long loops
   that construct many separate `Sim` contexts.
+- `coulomb("cutoff")` is reaction field with OpenMM's default dielectric 78.3; expose the dielectric or a
+  plain shifted-cutoff option if users need it.
+- `System.gas` places a particle anyway after 200 rejected trial positions (only reachable at very high
+  densities); it could report an error instead.
+- Thread count is fixed at 1 on the CPU platform (deterministic); a `threads` setting would help large
+  systems at the cost of byte-identical reruns.

@@ -8,9 +8,9 @@ Measured 2026-10-23, x86_64 Linux, GCC 11.4, Ninja.
 - `./test.sh` (16 checks): sdk pin; deps pin; build; `--version` exactly `lmmolecule 0.1.0`;
   schema equals the registrations in `cpp/main.cpp`; embedded schema byte-identical; host registry
   equals compiler signatures; `--notices` includes OpenMM and PocketFFT texts; static linking;
-  every program under `tests/` (5 files) and `examples/` (4 files) compiles and runs and passes
+  every program under `tests/` (6 files) and `examples/` (4 files) compiles and runs and passes
   its own `assert_close` physics checks; `--dry-run` check; all 4 result CSV/XYZ files
-  byte-identical on rerun; 9 error snippets exit 3 with a message naming the problem; the
+  byte-identical on rerun; 17 error snippets exit 3 with a message naming the problem; the
   `lmmolecule` + `lmplot` combo pipeline (`examples/combo/morse_plot.lms`); usage/load exit codes
   2 and 3.
 - Physics oracles verified by `tests/*.lms`:

@@ -22,7 +22,8 @@ registry against `lmscript --dsl-signatures`. One context, `md: Md`; types `Md` 
 ## Determinism across platforms and reruns
 
 - `md.platform("reference" | "cpu")` selects OpenMM's double-precision `"Reference"` platform or
-  mixed-precision SIMD `"CPU"` platform (default `"CPU"`). On `"CPU"`, `Threads=1` and
+  mixed-precision SIMD `"CPU"` platform (default `"Reference"`; the setting applies to every `Sim`
+  created after the call). On `"CPU"`, `Threads=1` and
   `DeterministicForces=true` are passed to `OpenMM::Context` so force accumulation order is
   deterministic.
 - Before creating an `OpenMM::Context`, `build_sim` resets `SimTKOpenMMUtilities`'s static SFMT
@@ -31,3 +32,18 @@ registry against `lmscript --dsl-signatures`. One context, `md: Md`; types `Md` 
 - `Sim.report(path, every)` writes `# step time ke pe energy temperature` followed by
   space-separated rows (`%.10g`) at step 0 and every `every` steps. `Sim.xyz(path, every)` writes
   multi-frame XYZ in `nm`.
+
+## Validation and failure behaviour
+
+- Lepton expressions (`md.eval`, `custom_external`, `custom_bond`, `custom_nonbonded`) are parsed and
+  walked before anything optimizes them: a constant sub-expression that is not finite (`sqrt(-1)`,
+  `1/0`) is an error, because Lepton's `optimize()` compares folded constants with `==` and loops forever
+  on a NaN constant. Parameter names `x y z r pi e` are reserved.
+- `Sim.step` / `Sim.minimize` check positions and velocities after every integration chunk; `ke`, `pe`,
+  `energy`, `temperature`, `fx..fz` and report rows refuse non-finite values. All exit 3 with the step.
+- `lj(eps, sigma, cutoff)` and `coulomb(method, cutoff)` share one OpenMM `NonbondedForce`, so a non-zero
+  LJ cutoff together with `coulomb("none")` or a different Coulomb cutoff is an error at `System.sim`.
+- `coulomb("cutoff", rc)` (and charges with only an LJ cutoff) is OpenMM's reaction-field Coulomb with
+  dielectric 78.3, not a plain truncation.
+- `OpenMMException`s (for example two custom forces giving one global parameter different values) are
+  reported as run errors (exit 3) with OpenMM's message.
