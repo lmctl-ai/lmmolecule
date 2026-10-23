@@ -12,13 +12,13 @@
 #endif
 #include <windows.h>
 #include <intrin.h>
-static inline void lmmolecule_no_cpuid(int cpuInfo[4], int) {
-  cpuInfo[0] = 0;
-  cpuInfo[1] = 0;
-  cpuInfo[2] = 0;
-  cpuInfo[3] = 0;
+static inline void lmmolecule_cpuid_no_avx(int cpuInfo[4], int infoType) {
+  __cpuid(cpuInfo, infoType);
+  if (infoType == 1) {
+    cpuInfo[2] &= ~((int)1 << 28);
+  }
 }
-#define __cpuid lmmolecule_no_cpuid
+#define __cpuid lmmolecule_cpuid_no_avx
 #endif
 
 #endif
