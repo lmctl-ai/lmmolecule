@@ -117,7 +117,15 @@ expect_error badcut 'let s = md.system().box(1.0, 1.0, 1.0).add_particle(1.0, 0.
 expect_error badlepton 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).custom_external("0.5*k*(x^2+w^2)", "k=1.0");' "unknown name 'w'"
 expect_error badinteg 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).sim("rk4", 0.001, 0.0, 0.0, 1);' "unknown integrator"
 expect_error assertfail 'md.assert_close(1.0, 2.0, 0.1);' "assert_close failed"
-ok "errors stop the program with exit 3 and a clear message (9 cases)"
+expect_error zerodt 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).sim("verlet", 0.0, 0.0, 0.0, 1);' "dt must be positive"
+expect_error negmass 'let s = md.system().add_particle(-1.0, 0.0, 0.0, 0.0);' "mass must be non-negative"
+expect_error diverge 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).add_particle(1.0, 0.3, 0.0, 0.0).bond(0, 1, 0.1, 1000000.0).sim("verlet", 0.1, 0.0, 0.0, 1).step(1000);' "simulation diverged"
+expect_error nanenergy 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).add_particle(1.0, 0.5, 0.0, 0.0).custom_bond(0, 1, "log(r-1)").sim("verlet", 0.001, 0.0, 0.0, 1); let e = s.pe();' "energy is not finite"
+expect_error nanconst 'let x = md.eval("sqrt(-1)");' "constant sub-expression is not finite"
+expect_error reserved 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).custom_external("k*x^2", "x=1.0");' "is reserved"
+expect_error ommclash 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).custom_external("k*x^2", "k=1.0").custom_external("k*y^2", "k=2.0").sim("verlet", 0.001, 0.0, 0.0, 1);' "different default values"
+expect_error cutclash 'let s = md.system().fcc(2, 0.6, 40.0).lj(1.0, 0.34, 0.5).coulomb("pme", 0.55).sim("verlet", 0.001, 0.0, 0.0, 1);' "share one cutoff"
+ok "errors stop the program with exit 3 and a clear message (17 cases)"
 
 # Combined pipeline (lmmolecule computes, lmplot draws). Needs lmplot on PATH, or network for install=.
 if command -v lmplot >/dev/null 2>&1 || [ "${LMMOLECULE_TEST_NETWORK:-}" = 1 ]; then

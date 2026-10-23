@@ -1,0 +1,57 @@
+# Further closed-form oracles:
+# 1. free particle under Verlet: x(t) = x0 + v t exactly;
+# 2. harmonic bond period T = 2*pi*sqrt(mu/k) and NVE energy conservation on the mixed-precision CPU platform;
+# 3. canonical position variance in a harmonic well: <x^2> = kB T / k per Cartesian coordinate.
+out = ARGV.len() > 0 ? ARGV[0] : "build/oracles.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+
+# 1. Free flight: no forces, v = (1.5, -0.5, 0.25) nm/ps for 2 ps.
+md.platform("reference");
+let free = md.system().add_particle(12.0, 0.1, 0.2, 0.3).vel(0, 1.5, -0.5, 0.25).sim("verlet", 0.002, 0.0, 0.0, 1);
+free.step(1000);
+md.assert_close(free.time(), 2.0, 0.000000001);
+md.assert_close(free.x(0), 0.1 + 1.5 * 2.0, 0.000000001);
+md.assert_close(free.y(0), 0.2 - 0.5 * 2.0, 0.000000001);
+md.assert_close(free.z(0), 0.3 + 0.25 * 2.0, 0.000000001);
+md.assert_close(free.vx(0), 1.5, 0.000000000001);
+# KE = 0.5 * 12 * (2.25 + 0.25 + 0.0625) = 15.375 kJ/mol; T = 2 KE / (3 kB) for one particle.
+md.assert_close(free.ke(), 15.375, 0.000000001);
+md.assert_close(free.temperature(), 2.0 * 15.375 / (3.0 * md.eval("kB")), 0.000001);
+
+# 2. CPU platform harmonic bond: mu = 1 amu, k = 4 pi^2 -> T = 1 ps; amplitude 0.05 nm.
+md.platform("cpu");
+let k = md.eval("4 * pi^2");
+let e0 = 0.5 * k * 0.05 * 0.05;
+let bsim = md.system().add_particle(2.0, -0.125, 0.0, 0.0).add_particle(2.0, 0.125, 0.0, 0.0)
+  .bond(0, 1, 0.20, k).sim("verlet", 0.0001, 0.0, 0.0, 1);
+md.assert_close(bsim.pe(), e0, 0.0000001);
+bsim.step(5000);
+md.assert_close(bsim.distance(0, 1), 0.15, 0.0001);
+bsim.step(5000);
+md.assert_close(bsim.time(), 1.0, 0.000000001);
+md.assert_close(bsim.distance(0, 1), 0.25, 0.0001);
+md.assert_close((bsim.energy() - e0) / e0, 0.0, 0.0001);
+
+# 3. <x^2> = kB T / k for 256 independent particles in V = 0.5 k r^2 (k = 25 kJ/mol/nm^2, T = 300 K).
+md.platform("reference");
+let n = 256;
+let kw = 25.0;
+let temp = 300.0;
+let want = md.eval("kB") * temp / kw;
+let well = md.system().gas(n, 10.0, 4.0, 2024).custom_external("0.5*k*(x^2+y^2+z^2)", "k=25.0");
+let ls = well.sim("langevin", 0.005, temp, 5.0, 7);
+ls.minimize(0.0001, 100).velocities(temp, 7).step(1500);
+let sum = 0.0;
+let samples = 0;
+for (snap in range(0, 6)) {
+  ls.step(200);
+  for (i in range(0, n)) {
+    sum = sum + ls.x(i) * ls.x(i) + ls.y(i) * ls.y(i) + ls.z(i) * ls.z(i);
+    samples = samples + 3;
+  }
+}
+let mean_x2 = sum / float(samples);
+# 4608 chi-square(1) samples (some time correlation): standard error ~3%; check within 8%.
+md.assert_close(mean_x2, want, 0.08 * want);
+end _dsl_
+savedsl(p, out);
