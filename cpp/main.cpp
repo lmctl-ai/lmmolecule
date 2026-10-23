@@ -84,6 +84,10 @@ std::map<std::string, double> parse_params(const std::string &spec, const char *
     }
     if (used != val_s.size() || !std::isfinite(val))
       throw dslvm::Error(std::string(who) + ": bad parameter value '" + val_s + "'");
+    static const std::set<std::string> reserved = {"x", "y", "z", "r", "pi", "e"};
+    if (reserved.count(name))
+      throw dslvm::Error(std::string(who) + ": parameter name '" + name + "' is reserved");
+    if (out.count(name)) throw dslvm::Error(std::string(who) + ": parameter '" + name + "' given twice");
     out[name] = val;
   };
   for (char c : spec) {
@@ -397,6 +401,15 @@ std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &pla
 
   if (spec.has_lj || spec.has_charges || spec.has_coulomb) {
     auto *nb = new OpenMM::NonbondedForce();
+    // One NonbondedForce carries both LJ and Coulomb, so they must agree on the cutoff.
+    if (spec.has_lj && spec.lj_cutoff > 0.0 && spec.has_coulomb) {
+      if (spec.coulomb_method == "none" || spec.coulomb_method == "nocutoff")
+        throw dslvm::Error("System.sim: lj cutoff " + fmt(spec.lj_cutoff) +
+                           " conflicts with coulomb('none'): LJ and Coulomb share one cutoff");
+      if (spec.coulomb_cutoff != spec.lj_cutoff)
+        throw dslvm::Error("System.sim: lj cutoff " + fmt(spec.lj_cutoff) + " differs from coulomb cutoff " +
+                           fmt(spec.coulomb_cutoff) + ": LJ and Coulomb share one cutoff");
+    }
     double cutoff = spec.coulomb_cutoff > 0.0 ? spec.coulomb_cutoff : spec.lj_cutoff;
     OpenMM::NonbondedForce::NonbondedMethod nb_method = OpenMM::NonbondedForce::NoCutoff;
 
