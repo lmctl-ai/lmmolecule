@@ -1,6 +1,6 @@
 # Open items
 
-Done in 0.2.0: distance constraints and rigid TIP3P / SPC/E water, PDB read/write, reaction-field
+Done in 0.1.2: distance constraints and rigid TIP3P / SPC/E water, PDB read/write, reaction-field
 dielectric, Andersen thermostat, CPU thread count, `gas` overlap error, barostat T > 0 and box
 checks, `Sim.rdf` / `Sim.mark` / `Sim.msd`.
 

@@ -1,3 +1,5 @@
+lmmolecule 0.1.2 includes the third-party software listed below.
+
 lmmolecule is distributed under the MIT License (see LICENSE).
 This executable statically links the following third-party software components
 from OpenMM 8.2.0 (commit 53770948682c40bd460b39830d4e0f0fd3a4b868,

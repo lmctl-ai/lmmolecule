@@ -9,7 +9,7 @@ from an empty directory. Every example asserts its physical result with `md.asse
   morse_dimer. They keep the compile-only form (`lmscript file.lms out.dslb`) that `test.sh` uses.
 - `examples/visual/*.lms` (8) and `examples/combo/morse_plot.lms`: the first picture set (lmcad
   renders of coordinate CSVs, lmplot curves, the Morse GIF).
-- `examples/stories/*.lms` (12, added in 0.2.0): worked problems with a known answer.
+- `examples/stories/*.lms` (12, added in 0.1.2): worked problems with a known answer.
 
 ## Stories and their oracles
 
@@ -45,8 +45,8 @@ from an empty directory. Every example asserts its physical result with `md.asse
 - Timings (x86_64 laptop, build cached): all stories under 15 s except water_box (about 90 s with
   `md.threads(4)`) and argon_melt (about 30-50 s, lmcad frames). `examples/render-all.sh` runs all
   25 examples; CI runs it with `LMMOLECULE_TEST_NETWORK=1`.
-- `lmctl autorun` installs the latest *release*; the stories need the 0.2.0 API, so they only work
-  through autorun once a `v0.2.0` release exists (local `build/` on `PATH` takes priority).
+- `lmctl autorun` installs the latest *release*; the stories need the 0.1.2 API, so they only work
+  through autorun once a `v0.1.2` release exists (local `build/` on `PATH` takes priority).
 
 ## README layout
 

@@ -6,7 +6,7 @@ Measured 2026-10-23, x86_64 Linux, GCC 11.4, Ninja.
   `pocketfft`, `sfmt`, `lbfgs`, `serialization`): about 45 s. Binary 5.1 MB (stripped, `-static`),
   `ldd`: "not a dynamic executable".
 - `./test.sh` (19 checks, about 90 s with the build cached): sdk pin; deps pin; build; `--version`
-  exactly `lmmolecule 0.2.0`; schema equals the registrations in `cpp/main.cpp` (the check diffs
+  exactly `lmmolecule 0.1.2`; schema equals the registrations in `cpp/main.cpp` (the check diffs
   the working tree against the index, so stage `schema/lmmolecule.dsl.json` after regenerating);
   visual assets; embedded schema byte-identical; host registry equals compiler signatures;
   `--notices` includes OpenMM and PocketFFT texts; static linking; every program under `tests/`

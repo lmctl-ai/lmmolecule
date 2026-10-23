@@ -31,6 +31,8 @@ cmake -S . -B "$BUILD_DIR" $GEN -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build "$BUILD_DIR" >"$WORK/build.log" 2>&1 || { tail -40 "$WORK/build.log" >&2; fail "build"; }
 ok "build"
 
+python3 scripts/check-version.py "$HOST" || fail "package version agreement"
+ok "VERSION agrees with CMake, schema, notices, binary and release tag"
 want_version="lmmolecule $(sed -n 's/^project(lmmolecule VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
 [ "$("$HOST" --version)" = "$want_version" ] || fail "--version is not exactly '$want_version'"
 ok "--version prints exactly '$want_version'"
