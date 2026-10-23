@@ -1,0 +1,52 @@
+# Run from any working directory: lmscript examples/visual/morse_motion.lms
+# Molecular coordinates are computed by OpenMM, passed as CSV, then drawn by lmcad.
+mkdir("build/visuals");
+mkdir("docs/images");
+compute = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+# A stretched Morse dimer exchanges potential and kinetic energy under NVE.
+let sys = md.system().add_particle(2.0, -0.11, 0.0, 0.0).add_particle(2.0, 0.11, 0.0, 0.0)
+  .custom_bond(0, 1, "120.0*(1-exp(-12.0*(r-0.16)))^2");
+let sim = sys.sim("verlet", 0.0001, 0.0, 0.0, 1);
+let e0 = sim.energy();
+md.print("t,x,y,z,r,g,b");
+for (i in range(0, 48)) {
+  md.print(str(i) + "," + str(sim.x(0)) + "," + str(sim.x(1)) + ",0,0.2,0.7,0.95");
+  sim.step(10);
+}
+md.assert_close((sim.energy()-e0)/e0, 0.0, 0.0001);
+end _dsl_
+savedsl(compute, "build/visuals/morse_motion-compute.dslb");
+r = system ${dsl_cli(compute)} --dsl build/visuals/morse_motion-compute.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+write_file("build/visuals/morse_motion.csv", split(r.stdout, "{\"ok\"")[0]);
+draw = _dsl_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+scene.background(0.035, 0.055, 0.095);
+scene.ambient(0.32);
+scene.supersample(2);
+scene.directional_light(-0.6, -1.0, -0.8, 0.85);
+scene.fill_light(0.8, -0.1, 0.5, 0.45);
+let rows = read_keyframes_csv("build/visuals/morse_motion.csv");
+let a = scene.sphere(0.035, material().color(0.2, 0.7, 0.95));
+let b = scene.sphere(0.035, material().color(0.95, 0.5, 0.2));
+scene.camera(35.0, 0.0, 0.18, 0.70, 0.0, 0.0, 0.0);
+for (i in range(0, rows.len())) {
+  let p = rows.at(i);
+  a.position(p.x(), 0.0, 0.0);
+  b.position(p.y(), 0.0, 0.0);
+  if (i == 0) { scene.render_png("docs/images/morse_motion.png", 900, 560); }
+  scene.render_png("build/visuals/morse-frame-" + str(1000+i) + ".png", 480, 300);
+}
+end _dsl_
+savedsl(draw, "build/visuals/morse_motion-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/visuals/morse_motion-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+# A palette made from all frames avoids flicker. ffmpeg is a standalone tool, not linked.
+probe = system ffmpeg -version;
+if (probe.code == 0) {
+r = system ffmpeg -v error -y -framerate 12 -start_number 1000 -i build/visuals/morse-frame-%04d.png -filter_complex "[0:v]split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/images/morse-motion.gif;
+assert(r.code == 0, r.stderr);
+
+} else { println("Animation skipped: ffmpeg unavailable; still image generated."); }
+
+println("wrote docs/images/morse_motion.png");

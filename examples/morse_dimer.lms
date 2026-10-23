@@ -1,5 +1,7 @@
 # Anharmonic Morse diatomic oscillator via Lepton custom_bond:
 # Integrates NVE Verlet dynamics and writes a thermodynamic report CSV.
+mkdir("build/examples");
+mkdir("docs/images");
 out = ARGV.len() > 0 ? ARGV[0] : "build/morse_dimer.dslb";
 p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
@@ -16,4 +18,20 @@ md.print("Morse oscillator initial/final energy (kJ/mol): " + str(e0) + " / " + 
 md.assert_close((e1 - e0) / e0, 0.0, 0.0001);
 end _dsl_
 savedsl(p, out);
-println(f"wrote {out}");
+# An explicit bytecode output argument retains compile-only use in test.sh.
+if (ARGV.len() == 0) {
+r = system ${dsl_cli(p)} --dsl ${out};
+assert(r.code == 0, r.stdout + r.stderr);
+
+plot = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("docs/images/morse_dimer.png", 900, 560);
+plot.cmd("set title 'Morse dimer: conserved energy'; set xlabel 'Time (ps)'; set ylabel 'Energy (kJ/mol)'; set grid; set key outside top center horizontal");
+plot.cmd("plot 'build/examples/morse.csv' using 2:5 with lines lw 2 lc rgb '#2ca02c' title 'total energy', '' using 2:3 with lines lw 1.5 lc rgb '#1f77b4' title 'kinetic', '' using 2:4 with lines lw 1.5 lc rgb '#d62728' title 'potential'");
+plot.close();
+end _dsl_
+savedsl(plot, "build/morse_dimer-plot.dslb");
+r = system ${dsl_cli(plot)} --dsl build/morse_dimer-plot.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+println("wrote docs/images/morse_dimer.png");
+
+}

@@ -1,0 +1,40 @@
+# Run from any working directory: lmscript examples/visual/argon_structure.lms
+# Molecular coordinates are computed by OpenMM, passed as CSV, then drawn by lmcad.
+mkdir("build/visuals");
+mkdir("docs/images");
+compute = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+# A minimized 32-atom FCC cell; sphere radii are illustrative, coordinates are nm.
+let sys = md.system().fcc(2, 0.54, 39.948).lj(0.996, 0.3405, 0.52);
+let sim = sys.sim("verlet", 0.001, 0.0, 0.0, 1);
+sim.minimize(0.001, 200);
+md.assert_close(float(sys.count()), 32.0, 0.0);
+md.print("t,x,y,z,r,g,b");
+for (i in range(0, sys.count())) {
+  md.print(str(i) + "," + str(sim.x(i)) + "," + str(sim.y(i)) + "," + str(sim.z(i)) + ",0.16,0.65,0.95");
+}
+end _dsl_
+savedsl(compute, "build/visuals/argon_structure-compute.dslb");
+r = system ${dsl_cli(compute)} --dsl build/visuals/argon_structure-compute.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+write_file("build/visuals/argon_structure.csv", split(r.stdout, "{\"ok\"")[0]);
+draw = _dsl_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+scene.background(0.035, 0.055, 0.095);
+scene.ambient(0.32);
+scene.supersample(2);
+scene.directional_light(-0.6, -1.0, -0.8, 0.85);
+scene.fill_light(0.8, -0.1, 0.5, 0.45);
+let rows = read_keyframes_csv("build/visuals/argon_structure.csv");
+for (i in range(0, rows.len())) {
+  let p = rows.at(i);
+  scene.sphere(0.115, material().color(p.r(), p.g(), p.b())).position(p.x(), p.y(), p.z());
+}
+scene.fit_camera(36.0, 1.24);
+scene.render_png("docs/images/argon_structure.png", 900, 560);
+end _dsl_
+savedsl(draw, "build/visuals/argon_structure-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/visuals/argon_structure-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+
+
+println("wrote docs/images/argon_structure.png");

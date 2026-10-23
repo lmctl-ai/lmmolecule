@@ -1,5 +1,7 @@
 # NaCl rock-salt crystal electrostatic lattice energy via Particle Mesh Ewald (PME):
 # Computes the Madelung constant M = 1.747565 from a 4x4x4 rock-salt supercell (512 ions).
+mkdir("build/examples");
+mkdir("docs/images");
 out = ARGV.len() > 0 ? ARGV[0] : "build/nacl_madelung.dslb";
 p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("cpu");
@@ -15,6 +17,23 @@ let u_total = sim.pe();
 let madelung = -u_total * d_nn / (256.0 * coul);
 md.print("NaCl PME Madelung constant: " + str(madelung));
 md.assert_close(madelung, 1.7475645946, 0.00002);
+sim.report("build/examples/nacl_energy.csv", 1).step(0);
 end _dsl_
 savedsl(p, out);
-println(f"wrote {out}");
+# An explicit bytecode output argument retains compile-only use in test.sh.
+if (ARGV.len() == 0) {
+r = system ${dsl_cli(p)} --dsl ${out};
+assert(r.code == 0, r.stdout + r.stderr);
+
+plot = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("docs/images/nacl_madelung.png", 900, 560);
+plot.cmd("set title 'NaCl Madelung constant: computed vs reference'; set ylabel 'Madelung constant'; set grid; set key top left; set xrange [-0.7:0.7]; set yrange [1.74753:1.74760]; set xlabel '512-ion periodic cell'");
+plot.cmd("plot 'build/examples/nacl_energy.csv' using (0):(-$4*0.282/(256.0*138.935457644982)) with points pt 7 ps 2 lc rgb '#1f77b4' title 'computed', 1.7475645946 with lines lw 3 lc rgb '#ff7f0e' title 'reference'");
+plot.close();
+end _dsl_
+savedsl(plot, "build/nacl_madelung-plot.dslb");
+r = system ${dsl_cli(plot)} --dsl build/nacl_madelung-plot.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+println("wrote docs/images/nacl_madelung.png");
+
+}

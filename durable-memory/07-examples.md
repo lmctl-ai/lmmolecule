@@ -15,3 +15,24 @@ oscillator, `lmplot` for plotting kinetic, potential, and total energy vs time).
   1-2/1-3 exclusions.
 - `examples/morse_dimer.lms`: integrates a diatomic molecule with a Lepton custom bond Morse
   potential and checks NVE energy conservation.
+
+## Reproducible visuals
+
+README opens with six captioned visuals. `docs/gallery.md` lists eight new scientific stories in
+`examples/visual/`: argon_structure, nacl_structure, butane_relaxation, lj_binding, water_bend,
+isotope_oscillation, thermal_trap, morse_motion. The original four examples execute themselves and draw their own results; the existing combo also copies its plot to `docs/images/`.
+
+Run `LMMOLECULE_TEST_NETWORK=1 examples/render-all.sh` from any directory, after building the
+host locally or making a release available on PATH. Released sibling hosts auto-install through
+lmscript. lmplot draws measurements and lmcad renders computed coordinate CSVs (no hand-placed
+replacement results). `ffmpeg` assembles 48 computed Morse frames into a looping GIF; it is an
+external executable and no new library is linked. Intermediate CSV/bytecode/frames stay under
+ignored `build/visuals/`; only PNG/GIF assets under `docs/images/` are committed. Sphere sizes
+are illustrative; all molecular positions are in nm. Seeded Reference-platform runs are repeatable
+on one platform; no cross-platform byte stability is promised for fonts or stochastic integrators.
+
+`test.sh` checks source/image references, companion coverage, signatures and size bounds, then
+regenerates visuals when sibling hosts are available (otherwise prints an explicit skip).
+
+All gallery captions include raw-main `lmctl autorun` commands. Examples are self-contained and
+write into the current working directory, including when fetched into an empty directory.

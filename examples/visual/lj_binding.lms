@@ -1,0 +1,34 @@
+# Lennard-Jones binding curve: the pair energy has a clear minimum near sigma.
+mkdir("build/visuals");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+for (i in range(0, 41)) {
+  let r = 0.28 + 0.01 * float(i);
+  let sys = md.system()
+    .add_particle(39.948, 0.0, 0.0, 0.0)
+    .add_particle(39.948, r, 0.0, 0.0)
+    .lj(0.996, 0.3405, 0.997);
+  let sim = sys.sim("verlet", 0.001, 0.0, 0.0, 1);
+  if (i == 10) { md.assert_close(sim.pe(), -0.9947648, 0.02); }
+  md.print(str(r) + "," + str(sim.pe()));
+}
+end _dsl_
+savedsl(sim_prog, "build/visuals/lj_binding-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/visuals/lj_binding-sim.dslb;
+assert(r.code == 0);
+write_file("build/visuals/lj_binding.csv", "separation_nm,potential_kj_mol\n" + split(r.stdout, "{\"ok\"")[0]);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("docs/images/lj_binding.png", 900, 560);
+plot.cmd("set datafile separator ','");
+plot.cmd("set title 'Argon pair binding curve (Lennard-Jones)'");
+plot.cmd("set xlabel 'Separation (nm)'; set ylabel 'Potential energy (kJ/mol)'; set grid; set key off");
+plot.cmd("plot 'build/visuals/lj_binding.csv' every ::1 using 1:2 with lines lw 3 lc rgb '#1f77b4'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/visuals/lj_binding-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/visuals/lj_binding-draw.dslb;
+assert(r.code == 0);
+
+println("wrote docs/images/lj_binding.png");

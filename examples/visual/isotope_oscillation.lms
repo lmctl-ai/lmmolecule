@@ -1,0 +1,40 @@
+# Two identical harmonic dimers with different masses show isotope-dependent periods.
+mkdir("build/visuals");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let light = md.system()
+  .add_particle(1.0, -0.10, 0.0, 0.0)
+  .add_particle(1.0, 0.10, 0.0, 0.0)
+  .bond(0, 1, 0.16, 500.0)
+  .vel(0, 0.0, 0.0, 0.0).vel(1, 0.0, 0.0, 0.0);
+let heavy = md.system()
+  .add_particle(4.0, -0.10, 0.0, 0.0)
+  .add_particle(4.0, 0.10, 0.0, 0.0)
+  .bond(0, 1, 0.16, 500.0)
+  .vel(0, 0.0, 0.0, 0.0).vel(1, 0.0, 0.0, 0.0);
+let ls = light.sim("verlet", 0.0005, 0.0, 0.0, 1);
+let hs = heavy.sim("verlet", 0.0005, 0.0, 0.0, 1);
+for (i in range(0, 401)) {
+  if (i == 0) { md.assert_close(ls.distance(0, 1), 0.2, 0.000001); md.assert_close(hs.distance(0, 1), 0.2, 0.000001); }
+  md.print(str(float(i) * 0.0005) + "," + str(ls.distance(0, 1)) + "," + str(hs.distance(0, 1)));
+  ls.step(1); hs.step(1);
+}
+end _dsl_
+savedsl(sim_prog, "build/visuals/isotope_oscillation-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/visuals/isotope_oscillation-sim.dslb;
+assert(r.code == 0);
+write_file("build/visuals/isotope_oscillation.csv", "time_ps,light_distance_nm,heavy_distance_nm\n" + split(r.stdout, "{\"ok\"")[0]);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("docs/images/isotope_oscillation.png", 900, 560);
+plot.cmd("set datafile separator ','");
+plot.cmd("set title 'Mass changes the period of a harmonic dimer'; set xlabel 'Time (ps)'; set ylabel 'Bond distance (nm)'; set grid; set key top right");
+plot.cmd("plot 'build/visuals/isotope_oscillation.csv' every ::1 using 1:2 with lines lw 2 lc rgb '#1f77b4' title 'light isotope', '' every ::1 using 1:3 with lines lw 2 lc rgb '#d62728' title 'heavy isotope'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/visuals/isotope_oscillation-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/visuals/isotope_oscillation-draw.dslb;
+assert(r.code == 0);
+
+println("wrote docs/images/isotope_oscillation.png");

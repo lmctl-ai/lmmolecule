@@ -1,14 +1,29 @@
 # lmmolecule
 
-**Molecular dynamics for lmscript in one static executable: OpenMM 8 (Core API, Reference and SIMD
-CPU platforms, Lepton custom potentials, PocketFFT 3D Particle Mesh Ewald, L-BFGS energy
-minimization, Verlet and BAOAB Langevin middle integrators, and Monte Carlo barostat).** It is a
-scripting host, not a command-line tool: write an [lmscript](https://lmctl.com/tools/lmscript/skill.html)
-`_dsl_` block, compile it, run it with `lmmolecule --dsl`. No Python, no runtime plugins, no shared
-libraries.
+Molecular dynamics with OpenMM, scripted in lmscript and shown through reproducible experiments.
 
-[![CI](https://github.com/lmctl-ai/lmmolecule/actions/workflows/ci.yml/badge.svg)](https://github.com/lmctl-ai/lmmolecule/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+| Argon crystal | Ionic lattice | Butane relaxation |
+| --- | --- | --- |
+| ![Minimized FCC argon coordinates](docs/images/argon_structure.png) | ![Rock-salt sodium and chloride sites](docs/images/nacl_structure.png) | ![Butane before and after minimization](docs/images/butane_relaxation.png) |
+| [32 argon sites after minimization](examples/visual/argon_structure.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/visual/argon_structure.lms`. | [Na+ blue, Cl- green; rock-salt coordinates](examples/visual/nacl_structure.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/visual/nacl_structure.lms`. | [Orange initial, teal minimized; four united-atom sites](examples/visual/butane_relaxation.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/visual/butane_relaxation.lms`. |
+
+| Attraction and repulsion | Mass changes vibration | Anharmonic motion |
+| --- | --- | --- |
+| ![Lennard-Jones binding curve](docs/images/lj_binding.png) | ![Light and heavy dimer bond distances](docs/images/isotope_oscillation.png) | ![Animated Morse dimer](docs/images/morse-motion.gif) |
+| [The Lennard-Jones binding well](examples/visual/lj_binding.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/visual/lj_binding.lms`. | [A heavier dimer oscillates more slowly](examples/visual/isotope_oscillation.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/visual/isotope_oscillation.lms`. | [A stretched Morse bond exchanges energy](examples/visual/morse_motion.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/visual/morse_motion.lms`. |
+
+## Install and run
+
+Install [lmscript](https://lmctl.com/tools/lmscript/skill.html), then run an example from this repository root:
+
+```sh
+lmscript examples/visual/lj_binding.lms
+# Rebuild all images (requires the sibling hosts and ffmpeg for animation):
+LMMOLECULE_TEST_NETWORK=1 examples/render-all.sh
+```
+
+The `install=` bindings download released hosts on first use; local binaries on `PATH` take priority.
+See the [complete image gallery](docs/gallery.md) for every experiment, including water bending and thermal trapping.
 
 ```
 # argon-fcc.lms
@@ -50,21 +65,23 @@ are compiled by OpenMM's embedded Lepton engine; see
 
 Schema and rules: [durable-memory/03-schema-v0.md](durable-memory/03-schema-v0.md).
 
-Combine it with other hosts in one script: [examples/combo/morse_plot.lms](examples/combo/morse_plot.lms)
+Combine it with other hosts in one script: [examples/combo/morse_plot.lms](examples/combo/morse_plot.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/combo/morse_plot.lms`
 integrates an anharmonic Morse diatomic oscillator with `lmmolecule` and plots kinetic, potential,
 and total energy with [lmplot](https://github.com/lmctl-ai/lmplot) (two `_dsl_` blocks, two hosts).
 
-![Anharmonic Morse diatomic oscillator](examples/renders/morse_oscillator.png)
+![Anharmonic Morse diatomic oscillator](docs/images/morse_plot.png)
 
 ## Examples
 
+Eight new [visual experiments](docs/gallery.md) supplement the original simulations below.
+
 | Program | Shows |
 | --- | --- |
-| [argon_fcc_melt.lms](examples/argon_fcc_melt.lms) | 108-atom FCC argon crystal L-BFGS minimization + Langevin equilibration |
-| [nacl_madelung.lms](examples/nacl_madelung.lms) | 512-ion NaCl rock-salt lattice PME electrostatics → Madelung constant 1.747565 |
-| [butane_torsion.lms](examples/butane_torsion.lms) | united-atom butane chain with harmonic bonds/angles, 3-fold torsion, 1-4 LJ |
-| [morse_dimer.lms](examples/morse_dimer.lms) | Lepton custom bond Morse potential under NVE Verlet with energy conservation check |
-| [combo/morse_plot.lms](examples/combo/morse_plot.lms) | `lmmolecule` simulates, `lmplot` draws energy conservation plot |
+| [argon_fcc_melt.lms](examples/argon_fcc_melt.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/argon_fcc_melt.lms` | 108-atom FCC argon crystal L-BFGS minimization + Langevin equilibration |
+| [nacl_madelung.lms](examples/nacl_madelung.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/nacl_madelung.lms` | 512-ion NaCl rock-salt lattice PME electrostatics → Madelung constant 1.747565 |
+| [butane_torsion.lms](examples/butane_torsion.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/butane_torsion.lms` | united-atom butane chain with harmonic bonds/angles, 3-fold torsion, 1-4 LJ |
+| [morse_dimer.lms](examples/morse_dimer.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/morse_dimer.lms` | Lepton custom bond Morse potential under NVE Verlet with energy conservation check |
+| [combo/morse_plot.lms](examples/combo/morse_plot.lms)<br>`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/combo/morse_plot.lms` | `lmmolecule` simulates, `lmplot` draws energy conservation plot |
 
 ## Build
 

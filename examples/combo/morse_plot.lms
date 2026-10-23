@@ -19,11 +19,11 @@ assert(r.code == 0);
 
 draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("build/examples/morse_oscillator.png", 900, 560);
-plot.cmd("set title 'Anharmonic Morse Diatomic Oscillator (lmmolecule OpenMM + lmplot)'");
+plot.cmd("set title 'Anharmonic Morse dimer: energy exchange'");
 plot.cmd("set xlabel 'Time (ps)'");
 plot.cmd("set ylabel 'Energy (kJ/mol)'");
 plot.cmd("set grid");
-plot.cmd("set key top right");
+plot.cmd("set key outside top center horizontal");
 plot.cmd("plot 'build/examples/morse_combo.csv' using 2:3 with lines lw 2 lc rgb '#1f77b4' title 'Kinetic Energy (KE)', '' using 2:4 with lines lw 2 lc rgb '#ff7f0e' title 'Potential Energy (PE)', '' using 2:5 with lines lw 2.5 lc rgb '#2ca02c' title 'Total Energy (E)'");
 plot.close();
 end _dsl_
@@ -31,3 +31,6 @@ savedsl(draw, "build/morse-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/morse-draw.dslb;
 assert(r.code == 0);
 println("wrote build/examples/morse_oscillator.png");
+
+mkdir("docs/images");
+copy_file("build/examples/morse_oscillator.png", "docs/images/morse_plot.png");

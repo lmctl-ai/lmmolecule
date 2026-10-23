@@ -1,0 +1,35 @@
+# Harmonic water bend: scan the angle energy while keeping both O-H lengths fixed.
+mkdir("build/visuals");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let pi = md.eval("pi");
+for (i in range(0, 31)) {
+  let theta = 1.30 + 0.02 * float(i);
+  let sys = md.system()
+    .add_particle(15.999, 0.0, 0.0, 0.0)
+    .add_particle(1.008, 0.096, 0.0, 0.0)
+    .add_particle(1.008, 0.096 * cos(theta), 0.096 * sin(theta), 0.0)
+    .angle(1, 0, 2, 1.82, 450.0);
+  let sim = sys.sim("verlet", 0.001, 0.0, 0.0, 1);
+  if (i == 26) { md.assert_close(sim.pe(), 0.0, 0.000001); }
+  md.print(str(theta * 180.0 / pi) + "," + str(sim.pe()));
+}
+end _dsl_
+savedsl(sim_prog, "build/visuals/water_bend-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/visuals/water_bend-sim.dslb;
+assert(r.code == 0);
+write_file("build/visuals/water_bend.csv", "angle_deg,bend_energy_kj_mol\n" + split(r.stdout, "{\"ok\"")[0]);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("docs/images/water_bend.png", 900, 560);
+plot.cmd("set datafile separator ','");
+plot.cmd("set title 'Water bending potential'; set xlabel 'H-O-H angle (degrees)'; set ylabel 'Energy (kJ/mol)'; set grid; set key off");
+plot.cmd("plot 'build/visuals/water_bend.csv' every ::1 using 1:2 with lines lw 3 lc rgb '#d62728'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/visuals/water_bend-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/visuals/water_bend-draw.dslb;
+assert(r.code == 0);
+
+println("wrote docs/images/water_bend.png");
