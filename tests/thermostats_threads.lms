@@ -1,0 +1,31 @@
+# Andersen thermostat canonical sampling and multi-threaded CPU platform energy conservation.
+# 1. 256 particles in V = 0.5 k r^2 with Verlet + Andersen collisions at 300 K: <KE> = 3/2 N kB T;
+# 2. Md.threads(2) on the CPU platform keeps the harmonic-bond NVE drift below 1e-8 over 10^4 steps.
+out = ARGV.len() > 0 ? ARGV[0] : "build/thermostats_threads.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let temp = 300.0;
+let want = 1.5 * 256.0 * md.eval("kB") * temp;
+let well = md.system().gas(256, 10.0, 4.0, 5).custom_external("0.5*k*(x^2+y^2+z^2)", "k=25.0").andersen(temp, 10.0, 9);
+let asim = well.sim("verlet", 0.005, 0.0, 0.0, 1);
+asim.minimize(0.0001, 100).velocities(temp, 5).step(1500);
+let sum = 0.0;
+for (i in range(0, 4)) {
+  asim.step(250);
+  sum = sum + asim.ke();
+}
+md.assert_close(sum / 4.0, want, 0.08 * want);
+
+md.platform("cpu");
+md.threads(2);
+let k = md.eval("4 * pi^2");
+let bsim = md.system().add_particle(2.0, -0.125, 0.0, 0.0).add_particle(2.0, 0.125, 0.0, 0.0)
+  .bond(0, 1, 0.20, k).sim("verlet", 0.0001, 0.0, 0.0, 1);
+let e0 = bsim.energy();
+bsim.step(10000);
+md.assert_close(bsim.time(), 1.0, 0.000000001);
+md.assert_close(bsim.distance(0, 1), 0.25, 0.0001);
+md.assert_close((bsim.energy() - e0) / e0, 0.0, 0.00000001);
+md.threads(1);
+end _dsl_
+savedsl(p, out);

@@ -18,6 +18,14 @@
             "returns": "Md"
           }
         ],
+        "threads": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "Md"
+          }
+        ],
         "eval": [
           {
             "params": [
@@ -131,6 +139,46 @@
             "returns": "System"
           }
         ],
+        "load_pdb": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "System"
+          }
+        ],
+        "water": [
+          {
+            "params": [
+              "string",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "water_box": [
+          {
+            "params": [
+              "string",
+              "int",
+              "float",
+              "int"
+            ],
+            "returns": "System"
+          }
+        ],
+        "constrain": [
+          {
+            "params": [
+              "int",
+              "int",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
         "pos": [
           {
             "params": [
@@ -228,6 +276,14 @@
             "returns": "System"
           }
         ],
+        "dielectric": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
         "exclude": [
           {
             "params": [
@@ -272,6 +328,16 @@
               "float",
               "float",
               "int",
+              "int"
+            ],
+            "returns": "System"
+          }
+        ],
+        "andersen": [
+          {
+            "params": [
+              "float",
+              "float",
               "int"
             ],
             "returns": "System"
@@ -340,6 +406,44 @@
         "step": [
           {
             "params": [
+              "int"
+            ],
+            "returns": "Sim"
+          }
+        ],
+        "save_pdb": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Sim"
+          }
+        ],
+        "dof": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "mark": [
+          {
+            "params": [],
+            "returns": "Sim"
+          }
+        ],
+        "msd": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "rdf": [
+          {
+            "params": [
+              "string",
+              "float",
+              "int",
+              "int",
               "int"
             ],
             "returns": "Sim"

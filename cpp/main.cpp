@@ -42,6 +42,8 @@ namespace {
 using dslvm::Args;
 using dslvm::Value;
 
+const double kPi = 3.14159265358979323846;
+
 std::string fmt(double x) {
   if (std::fabs(x) == 0.0) x = 0.0;
   char b[48];
@@ -183,6 +185,33 @@ struct CustomNonbondedSpec {
   double cutoff;
 };
 
+struct ConstraintSpec {
+  int i, j;
+  double dist;
+};
+
+// Rigid three-site water models (OpenMM/GROMACS parameter sets; nm, kJ/mol, e, amu).
+struct WaterModel {
+  const char *name;
+  double r_oh, theta_deg, q_o, q_h, sigma_o, eps_o;
+};
+
+const WaterModel *water_model(const std::string &name, const char *who) {
+  static const WaterModel models[] = {
+      {"tip3p", 0.09572, 104.52, -0.834, 0.417, 0.315061, 0.636386},
+      {"spce", 0.1, 109.47, -0.8476, 0.4238, 0.316557, 0.650194},
+  };
+  std::string m = lower_str(trim_str(name));
+  if (m == "spc/e") m = "spce";
+  for (const auto &w : models) {
+    if (m == w.name) return &w;
+  }
+  throw dslvm::Error(std::string(who) + ": unknown water model '" + name + "' (expected 'tip3p' or 'spce')");
+}
+
+const double MASS_O = 15.99943;
+const double MASS_H = 1.007947;
+
 struct SystemSpec {
   bool has_box = false;
   double box_a = 0.0, box_b = 0.0, box_c = 0.0;
@@ -190,6 +219,7 @@ struct SystemSpec {
   std::vector<BondSpec> bonds;
   std::vector<AngleSpec> angles;
   std::vector<TorsionSpec> torsions;
+  std::vector<ConstraintSpec> constraints;
   bool has_lj = false;
   double default_lj_eps = 0.0;
   double default_lj_sigma = 0.1;
@@ -198,6 +228,7 @@ struct SystemSpec {
   bool has_coulomb = false;
   std::string coulomb_method = "none";
   double coulomb_cutoff = 0.0;
+  double rf_dielectric = 78.3;
   std::set<std::pair<int, int>> exclusions;
   std::vector<CustomExternalSpec> custom_externals;
   std::vector<CustomBondSpec> custom_bonds;
@@ -207,6 +238,52 @@ struct SystemSpec {
   double baro_temp = 300.0;
   int baro_freq = 25;
   int baro_seed = 1;
+  bool has_andersen = false;
+  double andersen_temp = 300.0;
+  double andersen_rate = 1.0;
+  int andersen_seed = 1;
+
+  // One rigid water: oxygen at (ox, oy, oz), hydrogens along the rotated molecular frame
+  // (rot is a 3x3 rotation matrix stored row-major; identity puts the molecule in the xy-plane,
+  // bisector along +x).
+  void add_water(const WaterModel &w, OpenMM::Vec3 o, const double rot[9]) {
+    double half = 0.5 * w.theta_deg * kPi / 180.0;
+    double hx = w.r_oh * std::cos(half), hy = w.r_oh * std::sin(half);
+    OpenMM::Vec3 local[2] = {OpenMM::Vec3(hx, hy, 0.0), OpenMM::Vec3(hx, -hy, 0.0)};
+    int base = (int)particles.size();
+    ParticleSpec po;
+    po.mass = MASS_O;
+    po.pos = o;
+    po.charge = w.q_o;
+    po.has_lj = true;
+    po.lj_eps = w.eps_o;
+    po.lj_sigma = w.sigma_o;
+    po.symbol = "O";
+    particles.push_back(po);
+    for (int h = 0; h < 2; h++) {
+      const OpenMM::Vec3 &l = local[h];
+      ParticleSpec ph;
+      ph.mass = MASS_H;
+      ph.pos = OpenMM::Vec3(o[0] + rot[0] * l[0] + rot[1] * l[1] + rot[2] * l[2],
+                            o[1] + rot[3] * l[0] + rot[4] * l[1] + rot[5] * l[2],
+                            o[2] + rot[6] * l[0] + rot[7] * l[1] + rot[8] * l[2]);
+      ph.charge = w.q_h;
+      ph.has_lj = true;
+      ph.lj_eps = 0.0;
+      ph.lj_sigma = 0.1;
+      ph.symbol = "H";
+      particles.push_back(ph);
+    }
+    has_charges = true;
+    has_lj = true;
+    double d_hh = 2.0 * hy;
+    constraints.push_back(ConstraintSpec{base, base + 1, w.r_oh});
+    constraints.push_back(ConstraintSpec{base, base + 2, w.r_oh});
+    constraints.push_back(ConstraintSpec{base + 1, base + 2, d_hh});
+    exclusions.insert({base, base + 1});
+    exclusions.insert({base, base + 2});
+    exclusions.insert({base + 1, base + 2});
+  }
 };
 
 struct SimObj {
@@ -215,10 +292,12 @@ struct SimObj {
   std::unique_ptr<OpenMM::Integrator> integ;
   std::unique_ptr<OpenMM::Context> ctx;
   int mobile_particles = 0;
+  int dof = 0;
   int64_t total_steps = 0;
   // PME work memory OpenMM mallocs (outside operator new) at every force evaluation of this Sim.
   std::size_t charged = 0;
   ~SimObj() { membudget::release(charged); }
+  std::vector<OpenMM::Vec3> mark_pos;
 
   std::string report_path;
   int64_t report_every = 0;
@@ -230,9 +309,21 @@ struct SimObj {
   bool xyz_started = false;
   std::ofstream xyz_stream;
 
+  // Equipartition over the unconstrained degrees of freedom: 3 per mobile particle, minus one per
+  // distance constraint (a rigid three-site water keeps 6 of its 9).
   double compute_temp(double ke) const {
-    if (mobile_particles <= 0) return 0.0;
-    return (2.0 * ke) / (3.0 * (double)mobile_particles * BOLTZ);
+    if (dof <= 0) return 0.0;
+    return (2.0 * ke) / ((double)dof * BOLTZ);
+  }
+
+  void check_box(const char *who) const {
+    if (!spec.has_box) return;
+    OpenMM::Vec3 a, b, c;
+    ctx->getState(0).getPeriodicBoxVectors(a, b, c);
+    double v = a[0] * b[1] * c[2];
+    if (!std::isfinite(v) || !(v > 0.0) || !(a[0] > 0.0) || !(b[1] > 0.0) || !(c[2] > 0.0))
+      throw dslvm::Error(std::string(who) + ": periodic box is no longer valid (volume " + fmt(v) + " nm^3) at step " +
+                         std::to_string(total_steps) + " (barostat collapse or blow-up)");
   }
 
   OpenMM::State energy_state(const char *who) const {
@@ -278,6 +369,62 @@ struct SimObj {
                              " (reduce the timestep or check the forces)");
       }
     }
+    check_box(who);
+  }
+
+  // Integrates n steps, honouring the CSV/XYZ reporters at their intervals.
+  void run_steps(int64_t n) {
+    if (!report_path.empty() && !report_started) {
+      report_stream.open(report_path, std::ios::out | std::ios::trunc);
+      if (!report_stream) throw dslvm::Error("Sim.report: cannot open " + report_path);
+      report_stream << "# step time ke pe energy temperature\n";
+      report_started = true;
+      write_report_row();
+    }
+    if (!xyz_path.empty() && !xyz_started) {
+      xyz_stream.open(xyz_path, std::ios::out | std::ios::trunc);
+      if (!xyz_stream) throw dslvm::Error("Sim.xyz: cannot open " + xyz_path);
+      xyz_started = true;
+      write_xyz_frame(xyz_stream, xyz_path);
+    }
+    int64_t rem = n;
+    while (rem > 0) {
+      int64_t chunk = rem;
+      if (report_every > 0) chunk = std::min(chunk, report_every - (total_steps % report_every));
+      if (xyz_every > 0) chunk = std::min(chunk, xyz_every - (total_steps % xyz_every));
+      integ->step((int)chunk);
+      total_steps += chunk;
+      rem -= chunk;
+      check_finite("Sim.step");
+      if (report_every > 0 && (total_steps % report_every == 0)) write_report_row();
+      if (xyz_every > 0 && (total_steps % xyz_every == 0)) write_xyz_frame(xyz_stream, xyz_path);
+    }
+  }
+
+  void write_pdb(std::ostream &os, const std::string &path_for_err) const {
+    OpenMM::State st = ctx->getState(OpenMM::State::Positions);
+    const auto &pos = st.getPositions();
+    char line[128];
+    if (spec.has_box) {
+      OpenMM::Vec3 a, b, c;
+      st.getPeriodicBoxVectors(a, b, c);
+      std::snprintf(line, sizeof line, "CRYST1%9.3f%9.3f%9.3f  90.00  90.00  90.00 P 1           1\n", a[0] * 10.0,
+                    b[1] * 10.0, c[2] * 10.0);
+      os << line;
+    }
+    os << "REMARK   1 written by lmmolecule " LMMOLECULE_VERSION " at step " << total_steps << "\n";
+    for (size_t i = 0; i < pos.size(); i++) {
+      std::string sym = (i < spec.particles.size() && !spec.particles[i].symbol.empty()) ? spec.particles[i].symbol : "Ar";
+      if (sym.size() > 2) sym = sym.substr(0, 2);
+      std::string name = sym.size() == 1 ? " " + sym : sym;
+      std::snprintf(line, sizeof line, "HETATM%5d %-4s MOL A   1    %8.3f%8.3f%8.3f  1.00  0.00          %2s\n",
+                    (int)((i + 1) % 100000), name.c_str(), pos[i][0] * 10.0, pos[i][1] * 10.0, pos[i][2] * 10.0,
+                    sym.c_str());
+      os << line;
+    }
+    os << "END\n";
+    os.flush();
+    if (!os) throw dslvm::Error("Sim.save_pdb: failed writing to " + path_for_err);
   }
 
   void write_xyz_frame(std::ostream &os, const std::string &path_for_err) const {
@@ -304,6 +451,7 @@ struct SimObj {
 
 struct Host {
   std::string platform_name = "Reference";
+  int threads = 1;
   std::vector<std::unique_ptr<SystemSpec>> systems;
   std::vector<std::unique_ptr<SimObj>> sims;
 
@@ -388,7 +536,49 @@ int safe_seed(int64_t s) {
   return v == 0 ? 1 : v;
 }
 
-std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &platform_name,
+// Masses (amu) for the elements a PDB coordinate file can name; a System is built from positions
+// and masses only, interactions are added by the script.
+double element_mass(const std::string &symbol) {
+  static const std::map<std::string, double> table = {
+      {"H", 1.008},    {"He", 4.0026},  {"Li", 6.94},    {"Be", 9.0122},  {"B", 10.81},    {"C", 12.011},
+      {"N", 14.007},   {"O", 15.999},   {"F", 18.998},   {"Ne", 20.180},  {"Na", 22.990},  {"Mg", 24.305},
+      {"Al", 26.982},  {"Si", 28.085},  {"P", 30.974},   {"S", 32.06},    {"Cl", 35.45},   {"Ar", 39.948},
+      {"K", 39.098},   {"Ca", 40.078},  {"Ti", 47.867},  {"Cr", 51.996},  {"Mn", 54.938},  {"Fe", 55.845},
+      {"Co", 58.933},  {"Ni", 58.693},  {"Cu", 63.546},  {"Zn", 65.38},   {"Br", 79.904},  {"Kr", 83.798},
+      {"Rb", 85.468},  {"Sr", 87.62},   {"Ag", 107.87},  {"I", 126.90},   {"Xe", 131.29},  {"Cs", 132.91},
+      {"Ba", 137.33},  {"Au", 196.97},  {"Hg", 200.59},  {"Pb", 207.2},   {"Se", 78.971},  {"Mo", 95.95},
+  };
+  std::string s = symbol;
+  if (s.empty()) return -1.0;
+  s[0] = (char)std::toupper((unsigned char)s[0]);
+  for (size_t i = 1; i < s.size(); i++) s[i] = (char)std::tolower((unsigned char)s[i]);
+  auto it = table.find(s);
+  return it == table.end() ? -1.0 : it->second;
+}
+
+std::string pdb_field(const std::string &line, size_t col1, size_t col2) {
+  if (line.size() < col1) return "";
+  return trim_str(line.substr(col1 - 1, std::min(col2, line.size()) - col1 + 1));
+}
+
+// A random rotation matrix (row-major) from a uniformly distributed unit quaternion.
+void random_rotation(std::mt19937_64 &rng, double rot[9]) {
+  double u1 = uniform01(rng), u2 = uniform01(rng), u3 = uniform01(rng);
+  double a = std::sqrt(1.0 - u1), b = std::sqrt(u1);
+  double w = a * std::sin(2.0 * kPi * u2), x = a * std::cos(2.0 * kPi * u2);
+  double y = b * std::sin(2.0 * kPi * u3), z = b * std::cos(2.0 * kPi * u3);
+  rot[0] = 1 - 2 * (y * y + z * z);
+  rot[1] = 2 * (x * y - z * w);
+  rot[2] = 2 * (x * z + y * w);
+  rot[3] = 2 * (x * y + z * w);
+  rot[4] = 1 - 2 * (x * x + z * z);
+  rot[5] = 2 * (y * z - x * w);
+  rot[6] = 2 * (x * z - y * w);
+  rot[7] = 2 * (y * z + x * w);
+  rot[8] = 1 - 2 * (x * x + y * y);
+}
+
+std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &platform_name, int threads,
                                   const std::string &integ_name, double dt, double temperature,
                                   double friction, int64_t seed) {
   if (spec.particles.empty())
@@ -429,6 +619,14 @@ std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &pla
     init_vel.push_back(p.vel);
   }
   sim->mobile_particles = mobile;
+  for (const auto &c : spec.constraints) {
+    if (spec.particles[c.i].mass <= 0.0 || spec.particles[c.j].mass <= 0.0)
+      throw dslvm::Error("System.sim: constraint between particles " + std::to_string(c.i) + " and " +
+                         std::to_string(c.j) + " involves a fixed (zero-mass) particle");
+    sim->sys->addConstraint(c.i, c.j, c.dist);
+  }
+  sim->dof = 3 * mobile - (int)spec.constraints.size();
+  if (sim->dof < 0) throw dslvm::Error("System.sim: more constraints than degrees of freedom");
 
   if (!spec.bonds.empty()) {
     auto *bf = new OpenMM::HarmonicBondForce();
@@ -503,6 +701,7 @@ std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &pla
 
     nb->setNonbondedMethod(nb_method);
     if (cutoff > 0.0) nb->setCutoffDistance(cutoff);
+    nb->setReactionFieldDielectric(spec.rf_dielectric);
     nb->setEwaldErrorTolerance(1e-5);
     nb->setUseDispersionCorrection(false);
 
@@ -584,6 +783,12 @@ std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &pla
     sim->sys->addForce(baro);
   }
 
+  if (spec.has_andersen) {
+    auto *at = new OpenMM::AndersenThermostat(spec.andersen_temp, spec.andersen_rate);
+    at->setRandomNumberSeed(safe_seed(spec.andersen_seed));
+    sim->sys->addForce(at);
+  }
+
   int iseed = safe_seed(seed);
   // Reset Reference platform's cached Box-Muller spare normal value before initializing Context.
   OpenMM::SimTKOpenMMUtilities::setRandomNumberSeed((uint32_t)iseed);
@@ -601,12 +806,17 @@ std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &pla
   OpenMM::Platform &plat = OpenMM::Platform::getPlatformByName(platform_name);
   std::map<std::string, std::string> props;
   if (platform_name == "CPU") {
-    props["Threads"] = "1";
+    props["Threads"] = std::to_string(threads);
     props["DeterministicForces"] = "true";
   }
   sim->ctx = std::make_unique<OpenMM::Context>(*sim->sys, *sim->integ, plat, props);
   sim->ctx->setPositions(init_pos);
   sim->ctx->setVelocities(init_vel);
+  if (!spec.constraints.empty()) {
+    // Start on the constraint manifold even when the script's coordinates are only approximate.
+    sim->ctx->applyConstraints(1e-6);
+    sim->ctx->applyVelocityConstraints(1e-6);
+  }
   return sim;
 }
 
@@ -631,6 +841,11 @@ void register_host(dslvm::Registry &r, Host &h) {
     } else {
       throw dslvm::Error("Md.platform: unknown platform '" + a[0].s + "' (expected 'reference' or 'cpu')");
     }
+    return Value::object("Md", p);
+  });
+  method(r, "Md", "threads", {"int"}, "Md", [&h](void *p, Args &a) {
+    if (a[0].i < 1 || a[0].i > 256) throw dslvm::Error("Md.threads: thread count must be in 1..256");
+    h.threads = (int)a[0].i;
     return Value::object("Md", p);
   });
   method(r, "Md", "eval", {"string"}, "float", [](void *, Args &a) {
@@ -796,13 +1011,14 @@ void register_host(dslvm::Registry &r, Host &h) {
     std::mt19937_64 rng((uint64_t)seed);
     double min_dist = 0.35 * box / std::cbrt((double)n);
     double min_dist2 = min_dist * min_dist;
-    size_t start_idx = S(p).particles.size();
+    // Every particle already in the system (earlier gas/lattice calls included) is an obstacle.
     for (int64_t i = 0; i < n; i++) {
       OpenMM::Vec3 cand;
-      for (int attempt = 0; attempt < 200; attempt++) {
+      bool placed = false;
+      for (int attempt = 0; attempt < 200 && !placed; attempt++) {
         cand = OpenMM::Vec3(uniform01(rng) * box, uniform01(rng) * box, uniform01(rng) * box);
-        bool ok = true;
-        for (size_t j = start_idx; j < S(p).particles.size(); j++) {
+        placed = true;
+        for (size_t j = 0; j < S(p).particles.size(); j++) {
           double dx = cand[0] - S(p).particles[j].pos[0];
           double dy = cand[1] - S(p).particles[j].pos[1];
           double dz = cand[2] - S(p).particles[j].pos[2];
@@ -810,12 +1026,15 @@ void register_host(dslvm::Registry &r, Host &h) {
           dy -= std::round(dy / box) * box;
           dz -= std::round(dz / box) * box;
           if (dx * dx + dy * dy + dz * dz < min_dist2) {
-            ok = false;
+            placed = false;
             break;
           }
         }
-        if (ok) break;
       }
+      if (!placed)
+        throw dslvm::Error("System.gas: could not place particle " + std::to_string(i) + " of " + std::to_string(n) +
+                           " at least " + fmt(min_dist) + " nm from the " + std::to_string(S(p).particles.size()) +
+                           " existing particles after 200 attempts (box too crowded)");
       ParticleSpec ps;
       ps.mass = mass;
       ps.pos = cand;
@@ -857,6 +1076,115 @@ void register_host(dslvm::Registry &r, Host &h) {
       ps.pos = OpenMM::Vec3(x, y, z);
       S(p).particles.push_back(ps);
     }
+    return Value::object("System", p);
+  });
+  method(r, "System", "load_pdb", {"string"}, "System", [](void *p, Args &a) {
+    std::ifstream f(a[0].s);
+    if (!f) throw dslvm::Error("System.load_pdb: cannot open " + a[0].s);
+    std::string line;
+    int lineno = 0, added = 0;
+    while (std::getline(f, line)) {
+      lineno++;
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      std::string rec = line.substr(0, std::min<size_t>(6, line.size()));
+      if (rec == "END" || rec == "ENDMDL") break;
+      if (rec == "CRYST1") {
+        double a_ = std::atof(pdb_field(line, 7, 15).c_str()), b_ = std::atof(pdb_field(line, 16, 24).c_str()),
+               c_ = std::atof(pdb_field(line, 25, 33).c_str());
+        if (a_ > 0.0 && b_ > 0.0 && c_ > 0.0 && std::isfinite(a_ + b_ + c_)) {
+          S(p).has_box = true;
+          S(p).box_a = a_ * 0.1;
+          S(p).box_b = b_ * 0.1;
+          S(p).box_c = c_ * 0.1;
+        }
+        continue;
+      }
+      if (rec != "ATOM  " && rec != "HETATM") continue;
+      if (S(p).particles.size() >= 100000) throw dslvm::Error("System.load_pdb: particle count limit exceeded");
+      std::string xs = pdb_field(line, 31, 38), ys = pdb_field(line, 39, 46), zs = pdb_field(line, 47, 54);
+      size_t ux = 0, uy = 0, uz = 0;
+      double x = 0, y = 0, z = 0;
+      try {
+        x = std::stod(xs, &ux);
+        y = std::stod(ys, &uy);
+        z = std::stod(zs, &uz);
+      } catch (...) {
+        ux = uy = uz = 0;
+      }
+      if (xs.empty() || ys.empty() || zs.empty() || ux != xs.size() || uy != ys.size() || uz != zs.size() ||
+          !std::isfinite(x + y + z))
+        throw dslvm::Error("System.load_pdb: bad coordinates at line " + std::to_string(lineno) + " of " + a[0].s);
+      std::string element = pdb_field(line, 77, 78);
+      if (element.empty()) {
+        // Derive the element from the atom name: a name starting in column 13 has a two-letter element.
+        std::string name = line.size() >= 16 ? line.substr(12, 4) : "";
+        std::string letters;
+        for (char c : name) {
+          if (std::isalpha((unsigned char)c)) letters += c;
+          else if (!letters.empty()) break;
+        }
+        if (!letters.empty()) element = (name[0] != ' ' && letters.size() >= 2) ? letters.substr(0, 2) : letters.substr(0, 1);
+      }
+      double mass = element_mass(element);
+      if (mass < 0.0)
+        throw dslvm::Error("System.load_pdb: unknown element '" + element + "' at line " + std::to_string(lineno) +
+                           " of " + a[0].s);
+      ParticleSpec ps;
+      ps.mass = mass;
+      ps.symbol = element;
+      ps.symbol[0] = (char)std::toupper((unsigned char)ps.symbol[0]);
+      for (size_t i = 1; i < ps.symbol.size(); i++) ps.symbol[i] = (char)std::tolower((unsigned char)ps.symbol[i]);
+      ps.pos = OpenMM::Vec3(x * 0.1, y * 0.1, z * 0.1);
+      S(p).particles.push_back(ps);
+      added++;
+    }
+    if (added == 0) throw dslvm::Error("System.load_pdb: no ATOM/HETATM records in " + a[0].s);
+    return Value::object("System", p);
+  });
+  method(r, "System", "water", {"string", "float", "float", "float"}, "System", [](void *p, Args &a) {
+    const WaterModel *w = water_model(a[0].s, "System.water");
+    if (!std::isfinite(a[1].f) || !std::isfinite(a[2].f) || !std::isfinite(a[3].f))
+      throw dslvm::Error("System.water: coordinates must be finite");
+    if (S(p).particles.size() + 3 > 100000) throw dslvm::Error("System.water: particle count limit exceeded");
+    const double identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    S(p).add_water(*w, OpenMM::Vec3(a[1].f, a[2].f, a[3].f), identity);
+    return Value::object("System", p);
+  });
+  method(r, "System", "water_box", {"string", "int", "float", "int"}, "System", [](void *p, Args &a) {
+    const WaterModel *w = water_model(a[0].s, "System.water_box");
+    int64_t n = a[1].i;
+    double spacing = a[2].f;
+    if (n < 1 || n > 30) throw dslvm::Error("System.water_box: molecules per side n must be in 1..30");
+    if (!(spacing > 0.0) || !std::isfinite(spacing))
+      throw dslvm::Error("System.water_box: spacing must be positive (0.31 nm is liquid density)");
+    if (spacing < 2.0 * w->r_oh)
+      throw dslvm::Error("System.water_box: spacing " + fmt(spacing) + " nm is below the molecule size");
+    if (S(p).particles.size() + 3 * (size_t)(n * n * n) > 100000)
+      throw dslvm::Error("System.water_box: particle count limit exceeded");
+    double L = (double)n * spacing;
+    S(p).has_box = true;
+    S(p).box_a = L;
+    S(p).box_b = L;
+    S(p).box_c = L;
+    std::mt19937_64 rng((uint64_t)a[3].i);
+    for (int64_t ix = 0; ix < n; ix++) {
+      for (int64_t iy = 0; iy < n; iy++) {
+        for (int64_t iz = 0; iz < n; iz++) {
+          double rot[9];
+          random_rotation(rng, rot);
+          S(p).add_water(*w, OpenMM::Vec3(((double)ix + 0.5) * spacing, ((double)iy + 0.5) * spacing,
+                                          ((double)iz + 0.5) * spacing), rot);
+        }
+      }
+    }
+    return Value::object("System", p);
+  });
+  method(r, "System", "constrain", {"int", "int", "float"}, "System", [](void *p, Args &a) {
+    need_particle(S(p), a[0].i, "System.constrain");
+    need_particle(S(p), a[1].i, "System.constrain");
+    if (a[0].i == a[1].i) throw dslvm::Error("System.constrain: cannot constrain a particle to itself");
+    if (!(a[2].f > 0.0) || !std::isfinite(a[2].f)) throw dslvm::Error("System.constrain: distance must be positive");
+    S(p).constraints.push_back(ConstraintSpec{(int)a[0].i, (int)a[1].i, a[2].f});
     return Value::object("System", p);
   });
   method(r, "System", "pos", {"int", "float", "float", "float"}, "System", [](void *p, Args &a) {
@@ -940,9 +1268,11 @@ void register_host(dslvm::Registry &r, Host &h) {
   });
   method(r, "System", "coulomb", {"string", "float"}, "System", [](void *p, Args &a) {
     std::string m = lower_str(trim_str(a[0].s));
+    // 'cutoff' is OpenMM's reaction-field truncation (see System.dielectric); the explicit name is an alias.
+    if (m == "reaction_field" || m == "reactionfield") m = "cutoff";
     if (m != "none" && m != "nocutoff" && m != "cutoff" && m != "ewald" && m != "pme")
       throw dslvm::Error("System.coulomb: unknown method '" + a[0].s +
-                         "' (expected 'none', 'cutoff', 'ewald', or 'pme')");
+                         "' (expected 'none', 'cutoff' (= 'reaction_field'), 'ewald', or 'pme')");
     if (!std::isfinite(a[1].f) || a[1].f < 0.0)
       throw dslvm::Error("System.coulomb: cutoff must be non-negative");
     if ((m == "cutoff" || m == "ewald" || m == "pme") && !(a[1].f > 0.0))
@@ -950,6 +1280,12 @@ void register_host(dslvm::Registry &r, Host &h) {
     S(p).has_coulomb = true;
     S(p).coulomb_method = m;
     S(p).coulomb_cutoff = a[1].f;
+    return Value::object("System", p);
+  });
+  method(r, "System", "dielectric", {"float"}, "System", [](void *p, Args &a) {
+    if (!std::isfinite(a[0].f) || !(a[0].f >= 1.0))
+      throw dslvm::Error("System.dielectric: reaction-field dielectric must be >= 1 (1 = plain shifted cutoff)");
+    S(p).rf_dielectric = a[0].f;
     return Value::object("System", p);
   });
   method(r, "System", "exclude", {"int", "int"}, "System", [](void *p, Args &a) {
@@ -988,8 +1324,10 @@ void register_host(dslvm::Registry &r, Host &h) {
     return Value::object("System", p);
   });
   method(r, "System", "barostat", {"float", "float", "int", "int"}, "System", [](void *p, Args &a) {
-    if (!std::isfinite(a[0].f) || !(a[1].f >= 0.0) || !std::isfinite(a[1].f) || a[2].i < 1)
-      throw dslvm::Error("System.barostat: invalid barostat parameters");
+    if (!std::isfinite(a[0].f)) throw dslvm::Error("System.barostat: pressure must be finite");
+    if (!(a[1].f > 0.0) || !std::isfinite(a[1].f))
+      throw dslvm::Error("System.barostat: temperature must be positive (the Monte Carlo acceptance uses kT)");
+    if (a[2].i < 1 || a[2].i > 1000000) throw dslvm::Error("System.barostat: frequency must be in 1..1000000 steps");
     S(p).has_barostat = true;
     S(p).baro_pressure = a[0].f;
     S(p).baro_temp = a[1].f;
@@ -997,8 +1335,18 @@ void register_host(dslvm::Registry &r, Host &h) {
     S(p).baro_seed = (int)a[3].i;
     return Value::object("System", p);
   });
+  method(r, "System", "andersen", {"float", "float", "int"}, "System", [](void *p, Args &a) {
+    if (!(a[0].f > 0.0) || !std::isfinite(a[0].f)) throw dslvm::Error("System.andersen: temperature must be positive");
+    if (!(a[1].f > 0.0) || !std::isfinite(a[1].f))
+      throw dslvm::Error("System.andersen: collision frequency must be positive (1/ps)");
+    S(p).has_andersen = true;
+    S(p).andersen_temp = a[0].f;
+    S(p).andersen_rate = a[1].f;
+    S(p).andersen_seed = (int)a[2].i;
+    return Value::object("System", p);
+  });
   method(r, "System", "sim", {"string", "float", "float", "float", "int"}, "Sim", [&h](void *p, Args &a) {
-    auto sim = build_sim(S(p), h.platform_name, a[0].s, a[1].f, a[2].f, a[3].f, a[4].i);
+    auto sim = build_sim(S(p), h.platform_name, h.threads, a[0].s, a[1].f, a[2].f, a[3].f, a[4].i);
     if (h.sims.size() >= 100000) throw dslvm::Error("Sim object limit exceeded");
     h.sims.push_back(std::move(sim));
     return Value::object("Sim", h.sims.back().get());
@@ -1051,39 +1399,96 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "Sim", "step", {"int"}, "Sim", [](void *p, Args &a) {
     int64_t n = a[0].i;
     if (n < 0 || n > 10000000) throw dslvm::Error("Sim.step: step count must be in 0..10000000");
+    SIM(p).run_steps(n);
+    return Value::object("Sim", p);
+  });
+  method(r, "Sim", "save_pdb", {"string"}, "Sim", [](void *p, Args &a) {
+    if (a[0].s.empty()) throw dslvm::Error("Sim.save_pdb: path is empty");
+    std::ofstream f(a[0].s);
+    if (!f) throw dslvm::Error("Sim.save_pdb: cannot open " + a[0].s);
+    SIM(p).write_pdb(f, a[0].s);
+    return Value::object("Sim", p);
+  });
+  method(r, "Sim", "dof", {}, "int", [](void *p, Args &) {
+    return Value::integer(SIM(p).dof);
+  });
+  method(r, "Sim", "mark", {}, "Sim", [](void *p, Args &) {
+    SIM(p).mark_pos = SIM(p).ctx->getState(OpenMM::State::Positions).getPositions();
+    return Value::object("Sim", p);
+  });
+  // Mean squared displacement of the mobile particles since Sim.mark() (positions are never wrapped,
+  // so periodic systems give the Einstein-relation MSD directly).
+  method(r, "Sim", "msd", {}, "float", [](void *p, Args &) {
     SimObj &sim = SIM(p);
-    if (!sim.report_path.empty() && !sim.report_started) {
-      sim.report_stream.open(sim.report_path, std::ios::out | std::ios::trunc);
-      if (!sim.report_stream) throw dslvm::Error("Sim.report: cannot open " + sim.report_path);
-      sim.report_stream << "# step time ke pe energy temperature\n";
-      sim.report_started = true;
-      sim.write_report_row();
+    if (sim.mark_pos.empty()) throw dslvm::Error("Sim.msd: call Sim.mark() first to set the reference positions");
+    const auto pos = sim.ctx->getState(OpenMM::State::Positions).getPositions();
+    double sum = 0.0;
+    int count = 0;
+    for (size_t i = 0; i < pos.size(); i++) {
+      if (sim.spec.particles[i].mass <= 0.0) continue;
+      OpenMM::Vec3 d = pos[i] - sim.mark_pos[i];
+      sum += d.dot(d);
+      count++;
     }
-    if (!sim.xyz_path.empty() && !sim.xyz_started) {
-      sim.xyz_stream.open(sim.xyz_path, std::ios::out | std::ios::trunc);
-      if (!sim.xyz_stream) throw dslvm::Error("Sim.xyz: cannot open " + sim.xyz_path);
-      sim.xyz_started = true;
-      sim.write_xyz_frame(sim.xyz_stream, sim.xyz_path);
-    }
-    int64_t rem = n;
-    while (rem > 0) {
-      int64_t chunk = rem;
-      if (sim.report_every > 0) {
-        int64_t to_rep = sim.report_every - (sim.total_steps % sim.report_every);
-        chunk = std::min(chunk, to_rep);
+    if (count == 0) throw dslvm::Error("Sim.msd: no mobile particles");
+    double v = sum / (double)count;
+    if (!std::isfinite(v)) throw dslvm::Error("Sim.msd: displacement is not finite");
+    return Value::real(v);
+  });
+  // Radial distribution function g(r) of a periodic system, averaged over `frames` snapshots taken
+  // `stride` steps apart (the current configuration is the first), written as CSV "r g".
+  method(r, "Sim", "rdf", {"string", "float", "int", "int", "int"}, "Sim", [](void *p, Args &a) {
+    SimObj &sim = SIM(p);
+    if (a[0].s.empty()) throw dslvm::Error("Sim.rdf: path is empty");
+    if (!sim.spec.has_box) throw dslvm::Error("Sim.rdf: requires a periodic box");
+    double rmax = a[1].f;
+    int64_t bins = a[2].i, frames = a[3].i, stride = a[4].i;
+    if (!(rmax > 0.0) || !std::isfinite(rmax)) throw dslvm::Error("Sim.rdf: rmax must be positive");
+    if (bins < 1 || bins > 100000) throw dslvm::Error("Sim.rdf: bins must be in 1..100000");
+    if (frames < 1 || frames > 1000000) throw dslvm::Error("Sim.rdf: frames must be in 1..1000000");
+    if (stride < 0 || stride > 10000000) throw dslvm::Error("Sim.rdf: stride must be in 0..10000000");
+    size_t n = sim.spec.particles.size();
+    if (n < 2) throw dslvm::Error("Sim.rdf: needs at least two particles");
+    if (n > 20000) throw dslvm::Error("Sim.rdf: at most 20000 particles (pair loop)");
+    std::vector<double> hist((size_t)bins, 0.0);
+    double vol_sum = 0.0;
+    for (int64_t f = 0; f < frames; f++) {
+      if (f > 0 && stride > 0) sim.run_steps(stride);
+      OpenMM::State st = sim.ctx->getState(OpenMM::State::Positions);
+      OpenMM::Vec3 ba, bb, bc;
+      st.getPeriodicBoxVectors(ba, bb, bc);
+      double L[3] = {ba[0], bb[1], bc[2]};
+      if (rmax >= 0.5 * std::min({L[0], L[1], L[2]}))
+        throw dslvm::Error("Sim.rdf: rmax (" + fmt(rmax) + ") must be less than half the box size (" +
+                           fmt(0.5 * std::min({L[0], L[1], L[2]})) + ")");
+      vol_sum += L[0] * L[1] * L[2];
+      const auto &pos = st.getPositions();
+      for (size_t i = 0; i < n; i++) {
+        for (size_t j = i + 1; j < n; j++) {
+          double d2 = 0.0;
+          for (int k = 0; k < 3; k++) {
+            double d = pos[j][k] - pos[i][k];
+            d -= std::round(d / L[k]) * L[k];
+            d2 += d * d;
+          }
+          double d = std::sqrt(d2);
+          if (d < rmax) hist[(size_t)(d / rmax * (double)bins)] += 1.0;
+        }
       }
-      if (sim.xyz_every > 0) {
-        int64_t to_xyz = sim.xyz_every - (sim.total_steps % sim.xyz_every);
-        chunk = std::min(chunk, to_xyz);
-      }
-      sim.integ->step((int)chunk);
-      sim.total_steps += chunk;
-      rem -= chunk;
-      sim.check_finite("Sim.step");
-      if (sim.report_every > 0 && (sim.total_steps % sim.report_every == 0)) sim.write_report_row();
-      if (sim.xyz_every > 0 && (sim.total_steps % sim.xyz_every == 0))
-        sim.write_xyz_frame(sim.xyz_stream, sim.xyz_path);
     }
+    std::ofstream out(a[0].s);
+    if (!out) throw dslvm::Error("Sim.rdf: cannot open " + a[0].s);
+    out << "# r_nm g_r (" << frames << " frames, " << n << " particles)\n";
+    double rho = (double)n / (vol_sum / (double)frames);
+    double dr = rmax / (double)bins;
+    for (int64_t b = 0; b < bins; b++) {
+      double r1 = (double)b * dr, r2 = r1 + dr;
+      double shell = 4.0 / 3.0 * kPi * (r2 * r2 * r2 - r1 * r1 * r1);
+      double ideal = 0.5 * (double)n * rho * shell * (double)frames;
+      out << fmt(0.5 * (r1 + r2)) << " " << fmt(hist[(size_t)b] / ideal) << "\n";
+    }
+    out.flush();
+    if (!out) throw dslvm::Error("Sim.rdf: failed writing to " + a[0].s);
     return Value::object("Sim", p);
   });
   method(r, "Sim", "ke", {}, "float", [](void *p, Args &) {

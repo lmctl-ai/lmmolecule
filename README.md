@@ -52,15 +52,17 @@ are compiled by OpenMM's embedded Lepton engine; see
 
 | `md.` / `System` / `Sim` | |
 | --- | --- |
-| `md.system()` `md.platform("reference"\|"cpu")` | create system builder; select Reference or SIMD CPU platform |
+| `md.system()` `md.platform("reference"\|"cpu")` `md.threads(n)` | create system builder; select Reference or SIMD CPU platform; CPU thread count (1 = byte-identical reruns) |
 | `sys.box` `particle` `add_particle` `pos` `vel` `count` | periodic box and explicit particles |
-| `sys.fcc` `rocksalt` `gas` `load_xyz` | crystal lattices (FCC, NaCl rock-salt), seeded gas, XYZ loader |
-| `sys.bond` `angle` `torsion` | harmonic bonds, harmonic angles, periodic dihedral torsions |
-| `sys.lj` `lj_particle` `charge` `coulomb` `exclude` | Lennard-Jones 12-6, Coulomb (`none`/`cutoff`/`ewald`/`pme`), exclusions |
+| `sys.fcc` `rocksalt` `gas` `load_xyz` `load_pdb` | crystal lattices (FCC, NaCl rock-salt), seeded gas, XYZ and PDB coordinate loaders (element masses) |
+| `sys.water(model, x, y, z)` `water_box(model, n, spacing, seed)` | rigid TIP3P / SPC/E water: one molecule, or n³ molecules in a periodic cube |
+| `sys.bond` `angle` `torsion` `constrain` | harmonic bonds, harmonic angles, periodic dihedral torsions, rigid distance constraints (SHAKE/SETTLE) |
+| `sys.lj` `lj_particle` `charge` `coulomb` `dielectric` `exclude` | Lennard-Jones 12-6, Coulomb (`none`/`cutoff`=`reaction_field`/`ewald`/`pme`), reaction-field dielectric (78.3; 1 = plain shifted cutoff), exclusions |
 | `sys.custom_external` `custom_bond` `custom_nonbonded` | Lepton custom external traps, custom bonds, custom pair potentials |
-| `sys.barostat` `sys.sim("verlet"\|"langevin", ...)` | Monte Carlo NPT barostat; Verlet or BAOAB Langevin middle integrator |
-| `sim.minimize` `velocities` `step` `report` `xyz` `save_xyz` | L-BFGS minimization, Maxwell-Boltzmann seeding, CSV/XYZ reporters |
-| `sim.ke` `pe` `energy` `temperature` `time` `distance` `angle_val` `box_volume` | thermodynamic observables and geometry queries |
+| `sys.barostat` `andersen` `sys.sim("verlet"\|"langevin", ...)` | Monte Carlo NPT barostat, Andersen collision thermostat; Verlet or BAOAB Langevin middle integrator |
+| `sim.minimize` `velocities` `step` `report` `xyz` `save_xyz` `save_pdb` | L-BFGS minimization, Maxwell-Boltzmann seeding, CSV/XYZ/PDB writers |
+| `sim.ke` `pe` `energy` `temperature` `dof` `time` `distance` `angle_val` `box_volume` | thermodynamic observables (temperature over the constrained degrees of freedom) and geometry queries |
+| `sim.mark` `msd` `rdf(path, rmax, bins, frames, stride)` | mean squared displacement since `mark()` (Einstein diffusion), radial distribution function g(r) averaged over frames |
 | `md.eval(expr)` `assert_close` `print` `version` | physical constants (`pi`, `e`, `kB`, `one_4pi_eps0`), assertions, output |
 
 Schema and rules: [durable-memory/03-schema-v0.md](durable-memory/03-schema-v0.md).

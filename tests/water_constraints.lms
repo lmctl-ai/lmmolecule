@@ -1,0 +1,97 @@
+# Rigid water, distance constraints, reaction-field Coulomb, Andersen thermostat, analysis helpers:
+# 1. TIP3P water dimer: Jorgensen et al. (1983) report -6.50 kcal/mol = -27.2 kJ/mol at R(O-O) = 2.74 A;
+# 2. degrees of freedom and constraint lengths under Langevin dynamics for a 27-molecule box;
+# 3. PDB write/read round trip (0.001 A precision) including the CRYST1 box;
+# 4. reaction-field energy closed forms (dielectric 78.3 default and 1.0 = plain shifted cutoff);
+# 5. free-flight MSD = v^2 t^2 exactly, and a perfect FCC lattice has 12 first neighbours in g(r);
+# 6. Andersen thermostat equipartition <KE> = 3/2 N kB T; 7. two CPU threads conserve energy.
+out = ARGV.len() > 0 ? ARGV[0] : "build/water_constraints.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let kcal = 4.184;
+
+# 1. Water dimer: start near the hydrogen-bonded geometry and minimize.
+let dimer = md.system().water("tip3p", 0.0, 0.0, 0.0).water("tip3p", 0.1714, 0.2214, 0.0).coulomb("none", 0.0);
+md.assert_close(float(dimer.count()), 6.0, 0.0);
+let dsim = dimer.sim("verlet", 0.001, 0.0, 0.0, 1);
+md.assert_close(float(dsim.dof()), 12.0, 0.0);
+dsim.minimize(0.00001, 2000);
+md.assert_close(dsim.pe(), -6.50 * kcal, 0.3);
+md.assert_close(dsim.distance(0, 3), 0.274, 0.003);
+# Constraints survive minimization: r(O-H) = 0.09572 nm, r(H-H) = 2 r sin(104.52/2 deg).
+md.assert_close(dsim.distance(0, 1), 0.09572, 0.00001);
+md.assert_close(dsim.distance(1, 2), 2.0 * 0.09572 * md.eval("sin(104.52 / 2 * pi / 180)"), 0.00001);
+# SPC/E binds the dimer more strongly (its charges include a polarization correction).
+let spce = md.system().water("spce", 0.0, 0.0, 0.0).water("spce", 0.1714, 0.2214, 0.0).coulomb("none", 0.0);
+let ssim = spce.sim("verlet", 0.001, 0.0, 0.0, 1);
+ssim.minimize(0.00001, 2000);
+md.assert_close(ssim.pe(), -29.8, 0.5);
+md.assert_close(ssim.distance(0, 1), 0.1, 0.00001);
+
+# 2. A 3x3x3 water box with PME: 81 particles, 81 constraints, 162 degrees of freedom.
+md.platform("cpu");
+let box = md.system().water_box("tip3p", 3, 0.31, 7).coulomb("pme", 0.45);
+md.assert_close(float(box.count()), 81.0, 0.0);
+let bsim = box.sim("langevin", 0.002, 300.0, 1.0, 3);
+md.assert_close(float(bsim.dof()), 162.0, 0.0);
+md.assert_close(bsim.box_volume(), 0.93 * 0.93 * 0.93, 0.000001);
+bsim.minimize(1.0, 100).velocities(300.0, 3).step(200);
+md.assert_close(bsim.distance(0, 1), 0.09572, 0.00001);
+md.assert_close(bsim.distance(27, 29), 0.09572, 0.00001);
+md.assert_close(bsim.distance(1, 2), 0.15139, 0.00001);
+# Temperature uses the constrained count: T = 2 KE / (162 kB).
+md.assert_close(bsim.temperature(), 2.0 * bsim.ke() / (162.0 * md.eval("kB")), 0.000001);
+
+# 3. PDB round trip keeps coordinates to 0.0001 nm and the periodic box.
+bsim.save_pdb("build/water_box.pdb");
+let loaded = md.system().load_pdb("build/water_box.pdb");
+md.assert_close(float(loaded.count()), 81.0, 0.0);
+let lsim = loaded.sim("verlet", 0.001, 0.0, 0.0, 1);
+md.assert_close(lsim.x(0), bsim.x(0), 0.0001);
+md.assert_close(lsim.z(80), bsim.z(80), 0.0001);
+md.assert_close(lsim.box_volume(), bsim.box_volume(), 0.000001);
+
+# 4. Reaction field for two unit charges at r = 0.5 nm with cutoff rc = 1 nm:
+# E = k q q (1/r + k_rf r^2 - c_rf), k_rf = (eps-1)/((2eps+1) rc^3), c_rf = 3 eps/((2eps+1) rc).
+md.platform("reference");
+let k = md.eval("one_4pi_eps0");
+let rf = md.system().add_particle(1.0, 0.0, 0.0, 0.0).add_particle(1.0, 0.5, 0.0, 0.0)
+  .charge(0, 1.0).charge(1, 1.0).coulomb("cutoff", 1.0).sim("verlet", 0.001, 0.0, 0.0, 1);
+let eps = 78.3;
+let want78 = k * (2.0 + (eps - 1.0) / (2.0 * eps + 1.0) * 0.25 - 3.0 * eps / (2.0 * eps + 1.0));
+md.assert_close(rf.pe(), want78, 0.000001);
+let shifted = md.system().add_particle(1.0, 0.0, 0.0, 0.0).add_particle(1.0, 0.5, 0.0, 0.0)
+  .charge(0, 1.0).charge(1, 1.0).coulomb("reaction_field", 1.0).dielectric(1.0).sim("verlet", 0.001, 0.0, 0.0, 1);
+md.assert_close(shifted.pe(), k * (2.0 - 1.0), 0.000001);
+
+# 5. MSD of free flight and g(r) of a perfect FCC lattice.
+let free = md.system().add_particle(12.0, 0.1, 0.2, 0.3).vel(0, 1.5, -0.5, 0.25).sim("verlet", 0.002, 0.0, 0.0, 1);
+free.mark().step(1000);
+md.assert_close(free.msd(), (2.25 + 0.25 + 0.0625) * 4.0, 0.000000001);
+let fcc = md.system().fcc(3, 0.54, 39.948).lj(0.996, 0.3405, 0.78).sim("verlet", 0.001, 0.0, 0.0, 1);
+fcc.rdf("build/fcc_rdf.csv", 0.8, 80, 1, 0);
+end _dsl_
+savedsl(p, out);
+
+# g(r) check in the outer script: the bin holding a/sqrt(2) = 0.3818 nm integrates to 12 neighbours.
+if (ARGV.len() == 0) {
+r = system ${dsl_cli(p)} --dsl ${out};
+assert(r.code == 0, r.stdout + r.stderr);
+rows = read_lines("build/fcc_rdf.csv");
+rho = 108.0 / (1.62 * 1.62 * 1.62);
+neighbours = 0.0;
+for (line in rows) {
+  if (starts_with(line, "#")) { continue; }
+  parts = split(line, " ");
+  rr = num(parts[0]);
+  g = num(parts[1]);
+  if (rr < 0.45) {
+    r1 = rr - 0.005;
+    r2 = rr + 0.005;
+    shell = 4.0 / 3.0 * 3.141592653589793 * (r2 * r2 * r2 - r1 * r1 * r1);
+    neighbours = neighbours + g * rho * shell;
+  }
+}
+assert(abs(neighbours - 12.0) < 0.001, "fcc first shell has " + str(neighbours) + " neighbours, expected 12");
+println("fcc first shell: " + str(neighbours) + " neighbours");
+}

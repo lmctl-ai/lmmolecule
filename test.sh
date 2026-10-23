@@ -79,6 +79,10 @@ for src in tests/*.lms examples/*.lms; do
   grep -q '"ok": true' "$WORK/$name.out" || { cat "$WORK/$name.out" >&2; fail "$name did not report ok"; }
 done
 ok "$n programs run and pass their own assertions"
+# Sim.rdf of a perfect 3x3x3 FCC lattice (written by tests/water_constraints.lms): the first shell holds 12 neighbours.
+shell12="$(awk '!/^#/ && $1 < 0.45 { r1 = $1 - 0.005; r2 = $1 + 0.005; s += $2 * 108 / (1.62^3) * 4/3 * 3.141592653589793 * (r2^3 - r1^3) } END { printf "%.4f", s }' build/fcc_rdf.csv)"
+[ "$shell12" = "12.0000" ] || fail "fcc g(r) first shell integrates to $shell12 neighbours, expected 12"
+ok "Sim.rdf counts exactly 12 first neighbours in an FCC lattice"
 
 # Dry-run: validate bytecode and schema without running.
 "$HOST" --dry-run --dsl build/harmonic_bond.dslb >"$WORK/dry.out" || fail "--dry-run failed"
@@ -126,7 +130,18 @@ expect_error reserved 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).cust
 expect_error ommclash 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).custom_external("k*x^2", "k=1.0").custom_external("k*y^2", "k=2.0").sim("verlet", 0.001, 0.0, 0.0, 1);' "different default values"
 expect_error cutclash 'let s = md.system().fcc(2, 0.6, 40.0).lj(1.0, 0.34, 0.5).coulomb("pme", 0.55).sim("verlet", 0.001, 0.0, 0.0, 1);' "share one cutoff"
 expect_error pmegrid 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).charge(0, 1.0).box(200.0, 200.0, 200.0).coulomb("pme", 0.5).sim("verlet", 0.001, 0.0, 0.0, 1);' "PME grid 8772x8772x8772 is too large"
-ok "errors stop the program with exit 3 and a clear message (18 cases)"
+expect_error barotemp 'let s = md.system().fcc(2, 0.6, 40.0).lj(1.0, 0.34, 0.5).barostat(1.0, 0.0, 25, 1);' "temperature must be positive"
+expect_error crowded 'let s = md.system().fcc(10, 0.1, 1.0).gas(1, 1.0, 1.0, 1);' "box too crowded"
+expect_error selfcons 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).constrain(0, 0, 0.1);' "to itself"
+expect_error fixedcons 'let s = md.system().add_particle(0.0, 0.0, 0.0, 0.0).add_particle(1.0, 0.1, 0.0, 0.0).constrain(0, 1, 0.1).sim("verlet", 0.001, 0.0, 0.0, 1);' "zero-mass"
+expect_error badwater 'let s = md.system().water("tip4p", 0.0, 0.0, 0.0);' "unknown water model"
+expect_error baddiel 'let s = md.system().dielectric(0.5);' "must be >= 1"
+expect_error rdfnobox 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).add_particle(1.0, 0.3, 0.0, 0.0).sim("verlet", 0.001, 0.0, 0.0, 1); s.rdf("'"$WORK"'/x.csv", 0.1, 10, 1, 0);' "requires a periodic box"
+expect_error msdnomark 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).sim("verlet", 0.001, 0.0, 0.0, 1); let m = s.msd();' "Sim.mark()"
+expect_error andersen0 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).andersen(0.0, 1.0, 1);' "temperature must be positive"
+expect_error threads0 'md.threads(0);' "1..256"
+expect_error nopdb 'let s = md.system().load_pdb("'"$WORK"'/missing.pdb");' "cannot open"
+ok "errors stop the program with exit 3 and a clear message (29 cases)"
 
 # Memory budget: a runaway allocation loop stops with a run error (exit 3, message on stderr and in
 # the JSON line) instead of exhausting the machine. A small budget everywhere; on Linux also the
