@@ -2,6 +2,10 @@
 
 Molecular dynamics with OpenMM, scripted in lmscript: worked problems with known answers, each reproduced by one runnable file.
 
+[![CI](https://github.com/lmctl-ai/lmmolecule/actions/workflows/ci.yml/badge.svg)](https://github.com/lmctl-ai/lmmolecule/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/lmctl-ai/lmmolecule?label=release)](https://github.com/lmctl-ai/lmmolecule/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 | Liquid water, checked against the textbook | One potential, three phases | Diffusion from the Einstein relation |
 | --- | --- | --- |
 | ![216 TIP3P waters: g(r), temperature, energy, render](docs/images/water_box.png) | ![Argon g(r) for solid, liquid and gas](docs/images/argon_rdf_phases.png) | ![Mean squared displacement of liquid argon](docs/images/diffusion_msd.png) |
@@ -174,9 +178,6 @@ longest (about 90 s, four CPU threads) and `stories/argon_melt.lms` renders 24 l
   if `install` reports HTTP 403.
 
 ## Build
-
-[![CI](https://github.com/lmctl-ai/lmmolecule/actions/workflows/ci.yml/badge.svg)](https://github.com/lmctl-ai/lmmolecule/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 C++17 compiler, CMake 3.24, git; nothing else.
 
