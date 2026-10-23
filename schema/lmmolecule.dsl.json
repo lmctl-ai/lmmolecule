@@ -276,6 +276,14 @@
             "returns": "System"
           }
         ],
+        "dispersion_correction": [
+          {
+            "params": [
+              "bool"
+            ],
+            "returns": "System"
+          }
+        ],
         "dielectric": [
           {
             "params": [

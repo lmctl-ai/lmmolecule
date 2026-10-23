@@ -1,6 +1,8 @@
 # Andersen thermostat canonical sampling and multi-threaded CPU platform energy conservation.
 # 1. 256 particles in V = 0.5 k r^2 with Verlet + Andersen collisions at 300 K: <KE> = 3/2 N kB T;
-# 2. Md.threads(2) on the CPU platform keeps the harmonic-bond NVE drift below 1e-8 over 10^4 steps.
+# 2. Md.threads(2) on the CPU platform keeps the harmonic-bond NVE drift below 1e-8 over 10^4 steps;
+# 3. the Lennard-Jones long-range dispersion correction equals the analytic tail
+#    U_tail = (8/3) pi N rho eps sigma^3 [ (sigma/rc)^9 / 3 - (sigma/rc)^3 ] for 108 argon atoms.
 out = ARGV.len() > 0 ? ARGV[0] : "build/thermostats_threads.dslb";
 p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
@@ -27,5 +29,16 @@ md.assert_close(bsim.time(), 1.0, 0.000000001);
 md.assert_close(bsim.distance(0, 1), 0.25, 0.0001);
 md.assert_close((bsim.energy() - e0) / e0, 0.0, 0.00000001);
 md.threads(1);
+
+md.platform("reference");
+let rc = 0.78;
+let sig = 0.3405;
+let eps = 0.996;
+let plain = md.system().fcc(3, 0.54, 39.948).lj(eps, sig, rc).sim("verlet", 0.001, 0.0, 0.0, 1);
+let tail = md.system().fcc(3, 0.54, 39.948).lj(eps, sig, rc).dispersion_correction(true).sim("verlet", 0.001, 0.0, 0.0, 1);
+let rho = 108.0 / (1.62 * 1.62 * 1.62);
+let x3 = md.eval("(" + str(sig) + "/" + str(rc) + ")^3");
+let u_tail = 8.0 / 3.0 * md.eval("pi") * 108.0 * rho * eps * sig * sig * sig * (x3 * x3 * x3 / 3.0 - x3);
+md.assert_close(tail.pe() - plain.pe(), u_tail, 0.02 * md.eval("abs(" + str(u_tail) + ")"));
 end _dsl_
 savedsl(p, out);

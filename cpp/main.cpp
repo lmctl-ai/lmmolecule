@@ -229,6 +229,7 @@ struct SystemSpec {
   std::string coulomb_method = "none";
   double coulomb_cutoff = 0.0;
   double rf_dielectric = 78.3;
+  bool dispersion_correction = false;
   std::set<std::pair<int, int>> exclusions;
   std::vector<CustomExternalSpec> custom_externals;
   std::vector<CustomBondSpec> custom_bonds;
@@ -703,7 +704,7 @@ std::unique_ptr<SimObj> build_sim(const SystemSpec &spec, const std::string &pla
     if (cutoff > 0.0) nb->setCutoffDistance(cutoff);
     nb->setReactionFieldDielectric(spec.rf_dielectric);
     nb->setEwaldErrorTolerance(1e-5);
-    nb->setUseDispersionCorrection(false);
+    nb->setUseDispersionCorrection(spec.dispersion_correction);
 
     for (const auto &p : spec.particles) {
       double eps = p.has_lj ? p.lj_eps : (spec.has_lj ? spec.default_lj_eps : 0.0);
@@ -1279,6 +1280,10 @@ void register_host(dslvm::Registry &r, Host &h) {
     S(p).has_coulomb = true;
     S(p).coulomb_method = m;
     S(p).coulomb_cutoff = a[1].f;
+    return Value::object("System", p);
+  });
+  method(r, "System", "dispersion_correction", {"bool"}, "System", [](void *p, Args &a) {
+    S(p).dispersion_correction = a[0].b;
     return Value::object("System", p);
   });
   method(r, "System", "dielectric", {"float"}, "System", [](void *p, Args &a) {
