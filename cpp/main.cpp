@@ -228,9 +228,24 @@ struct SimObj {
     return (2.0 * ke) / (3.0 * (double)mobile_particles * BOLTZ);
   }
 
+  OpenMM::State energy_state(const char *who) const {
+    OpenMM::State st = ctx->getState(OpenMM::State::Energy);
+    if (!std::isfinite(st.getKineticEnergy()) || !std::isfinite(st.getPotentialEnergy()))
+      throw dslvm::Error(std::string(who) + ": energy is not finite (ke " + fmt(st.getKineticEnergy()) + ", pe " +
+                         fmt(st.getPotentialEnergy()) + ") at step " + std::to_string(total_steps));
+    return st;
+  }
+
+  double force(int64_t i, int d, const char *who) const {
+    double f = ctx->getState(OpenMM::State::Forces).getForces()[i][d];
+    if (!std::isfinite(f))
+      throw dslvm::Error(std::string(who) + ": force on particle " + std::to_string(i) + " is not finite");
+    return f;
+  }
+
   void write_report_row() {
     if (!report_stream.is_open()) return;
-    OpenMM::State st = ctx->getState(OpenMM::State::Energy);
+    OpenMM::State st = energy_state("Sim.report");
     double ke = st.getKineticEnergy();
     double pe = st.getPotentialEnergy();
     double te = ke + pe;
@@ -239,6 +254,23 @@ struct SimObj {
                   << " " << fmt(te) << " " << fmt(temp) << "\n";
     report_stream.flush();
     if (!report_stream) throw dslvm::Error("Sim.report: failed writing to " + report_path);
+  }
+
+  // OpenMM's Reference platform integrates NaN/inf without complaint (the CPU platform only notices
+  // in its neighbour list), so check the state after every integration chunk and minimization.
+  void check_finite(const char *who) const {
+    OpenMM::State st = ctx->getState(OpenMM::State::Positions | OpenMM::State::Velocities);
+    const auto &pos = st.getPositions();
+    const auto &vel = st.getVelocities();
+    for (size_t i = 0; i < pos.size(); i++) {
+      for (int d = 0; d < 3; d++) {
+        if (!std::isfinite(pos[i][d]) || !std::isfinite(vel[i][d]))
+          throw dslvm::Error(std::string(who) + ": simulation diverged: non-finite " +
+                             (std::isfinite(pos[i][d]) ? "velocity" : "position") + " of particle " +
+                             std::to_string(i) + " at step " + std::to_string(total_steps) +
+                             " (reduce the timestep or check the forces)");
+      }
+    }
   }
 
   void write_xyz_frame(std::ostream &os, const std::string &path_for_err) const {
@@ -940,7 +972,9 @@ void register_host(dslvm::Registry &r, Host &h) {
   method(r, "Sim", "minimize", {"float", "int"}, "Sim", [](void *p, Args &a) {
     if (!(a[0].f >= 0.0) || !std::isfinite(a[0].f) || a[1].i < 0)
       throw dslvm::Error("Sim.minimize: tolerance and max iterations must be non-negative");
+    if (a[1].i > 100000000) throw dslvm::Error("Sim.minimize: max iterations must be at most 100000000");
     OpenMM::LocalEnergyMinimizer::minimize(*SIM(p).ctx, a[0].f, (int)a[1].i);
+    SIM(p).check_finite("Sim.minimize");
     return Value::object("Sim", p);
   });
   method(r, "Sim", "report", {"string", "int"}, "Sim", [](void *p, Args &a) {
@@ -1001,6 +1035,7 @@ void register_host(dslvm::Registry &r, Host &h) {
       sim.integ->step((int)chunk);
       sim.total_steps += chunk;
       rem -= chunk;
+      sim.check_finite("Sim.step");
       if (sim.report_every > 0 && (sim.total_steps % sim.report_every == 0)) sim.write_report_row();
       if (sim.xyz_every > 0 && (sim.total_steps % sim.xyz_every == 0))
         sim.write_xyz_frame(sim.xyz_stream, sim.xyz_path);
@@ -1008,17 +1043,17 @@ void register_host(dslvm::Registry &r, Host &h) {
     return Value::object("Sim", p);
   });
   method(r, "Sim", "ke", {}, "float", [](void *p, Args &) {
-    return Value::real(SIM(p).ctx->getState(OpenMM::State::Energy).getKineticEnergy());
+    return Value::real(SIM(p).energy_state("Sim.ke").getKineticEnergy());
   });
   method(r, "Sim", "pe", {}, "float", [](void *p, Args &) {
-    return Value::real(SIM(p).ctx->getState(OpenMM::State::Energy).getPotentialEnergy());
+    return Value::real(SIM(p).energy_state("Sim.pe").getPotentialEnergy());
   });
   method(r, "Sim", "energy", {}, "float", [](void *p, Args &) {
-    OpenMM::State st = SIM(p).ctx->getState(OpenMM::State::Energy);
+    OpenMM::State st = SIM(p).energy_state("Sim.energy");
     return Value::real(st.getKineticEnergy() + st.getPotentialEnergy());
   });
   method(r, "Sim", "temperature", {}, "float", [](void *p, Args &) {
-    double ke = SIM(p).ctx->getState(OpenMM::State::Energy).getKineticEnergy();
+    double ke = SIM(p).energy_state("Sim.temperature").getKineticEnergy();
     return Value::real(SIM(p).compute_temp(ke));
   });
   method(r, "Sim", "time", {}, "float", [](void *p, Args &) {
@@ -1050,15 +1085,15 @@ void register_host(dslvm::Registry &r, Host &h) {
   });
   method(r, "Sim", "fx", {"int"}, "float", [](void *p, Args &a) {
     need_sim_particle(SIM(p), a[0].i, "Sim.fx");
-    return Value::real(SIM(p).ctx->getState(OpenMM::State::Forces).getForces()[a[0].i][0]);
+    return Value::real(SIM(p).force(a[0].i, 0, "Sim.fx"));
   });
   method(r, "Sim", "fy", {"int"}, "float", [](void *p, Args &a) {
     need_sim_particle(SIM(p), a[0].i, "Sim.fy");
-    return Value::real(SIM(p).ctx->getState(OpenMM::State::Forces).getForces()[a[0].i][1]);
+    return Value::real(SIM(p).force(a[0].i, 1, "Sim.fy"));
   });
   method(r, "Sim", "fz", {"int"}, "float", [](void *p, Args &a) {
     need_sim_particle(SIM(p), a[0].i, "Sim.fz");
-    return Value::real(SIM(p).ctx->getState(OpenMM::State::Forces).getForces()[a[0].i][2]);
+    return Value::real(SIM(p).force(a[0].i, 2, "Sim.fz"));
   });
   method(r, "Sim", "distance", {"int", "int"}, "float", [](void *p, Args &a) {
     SimObj &sim = SIM(p);
