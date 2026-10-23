@@ -79,9 +79,9 @@ Install [lmctl](https://lmctl.com/tools/lmscript/skill.html) (`npm install -g @l
 caption above from an empty directory, for example:
 
 ```sh
-mkdir water && cd water
-lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/stories/water_dimer.lms
-# -> docs/images/water_dimer.png and docs/images/water_dimer_geometry.png
+mkdir forces && cd forces
+lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/stories/water_forces.lms
+# -> docs/images/water_forces.png (lmmolecule computes the forces, lmdraw draws them to scale)
 ```
 
 The `install=` bindings download the released hosts (`lmmolecule`, `lmplot`, `lmcad`, `lmdraw`) on first
@@ -166,10 +166,16 @@ longest (about 90 s, four CPU threads) and `stories/argon_melt.lms` renders 24 l
   `md.threads(n > 1)` and stochastic integrators across platforms are not. Pictures with text can
   differ by font rendering.
 - `Sim.rdf` is an O(N²) pair loop capped at 20000 particles; `Sim.msd` has no centre-of-mass removal.
-- The examples in `examples/stories/` need host release 0.2.0 or later (`water`, `constrain`, `rdf`,
-  `msd`, `load_pdb`, `andersen`, `dispersion_correction`, `threads`).
+- Four stories need host release 0.2.0 (`water`, `rdf`, `threads`, `dispersion_correction`): until it is tagged,
+  `lmctl autorun` of `argon_rdf_phases`, `npt_density`, `water_box` and `water_dimer` stops at compile time with
+  "type System has no method"; from a checkout with the built host on `PATH` they run. The other 21 captions run
+  against the current release. GitHub rate-limits anonymous release lookups (60 per hour): export a `GITHUB_TOKEN`
+  if `install` reports HTTP 403.
 
 ## Build
+
+[![CI](https://github.com/lmctl-ai/lmmolecule/actions/workflows/ci.yml/badge.svg)](https://github.com/lmctl-ai/lmmolecule/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 C++17 compiler, CMake 3.24, git; nothing else.
 
