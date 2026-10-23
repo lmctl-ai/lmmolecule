@@ -4,6 +4,7 @@
 set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 while read -r name repo commit; do
+  name="${name%$'\r'}"; repo="${repo%$'\r'}"; commit="${commit%$'\r'}"
   case "$name" in ''|\#*) continue;; esac
   dir="$HERE/third_party/$name"
   if [ "${1:-}" = "--verify" ]; then
