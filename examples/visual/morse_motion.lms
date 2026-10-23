@@ -42,8 +42,7 @@ savedsl(draw, "build/visuals/morse_motion-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/visuals/morse_motion-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 # A palette made from all frames avoids flicker. ffmpeg is a standalone tool, not linked.
-probe = system ffmpeg -version;
-if (probe.code == 0) {
+if (which("ffmpeg") != null) {
 r = system ffmpeg -v error -y -framerate 12 -start_number 1000 -i build/visuals/morse-frame-%04d.png -filter_complex "[0:v]split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/images/morse-motion.gif;
 assert(r.code == 0, r.stderr);
 
