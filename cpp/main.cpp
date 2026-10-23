@@ -23,7 +23,8 @@
 #include "OpenMM.h"
 #include "SimTKOpenMMRealType.h"
 #include "SimTKOpenMMUtilities.h"
-#include "lepton/CompiledExpression.h"
+#include "lepton/ExpressionTreeNode.h"
+#include "lepton/Operation.h"
 #include "lepton/ParsedExpression.h"
 #include "lepton/Parser.h"
 
@@ -93,15 +94,39 @@ std::map<std::string, double> parse_params(const std::string &spec, const char *
   return out;
 }
 
-void validate_lepton(const std::string &expr, const std::set<std::string> &allowed, const char *who) {
+// Collects the variable names of a parsed Lepton expression and rejects constant sub-expressions that
+// are not finite. Lepton's optimize() (run by createCompiledExpression and by every OpenMM custom force
+// kernel) compares folded constants with ==, so a constant NaN such as sqrt(-1) never converges and
+// hangs the process.
+bool lepton_scan(const Lepton::ExpressionTreeNode &n, std::set<std::string> &vars, const std::string &expr,
+                 const char *who) {
+  if (n.getOperation().getId() == Lepton::Operation::VARIABLE) {
+    vars.insert(n.getOperation().getName());
+    return true;
+  }
+  bool has_var = false;
+  for (const auto &c : n.getChildren()) has_var = lepton_scan(c, vars, expr, who) || has_var;
+  if (!has_var && !std::isfinite(Lepton::ParsedExpression(n).evaluate()))
+    throw dslvm::Error(std::string(who) + ": expression \"" + expr + "\": constant sub-expression is not finite");
+  return has_var;
+}
+
+Lepton::ParsedExpression parse_lepton(const std::string &expr, std::set<std::string> &vars, const char *who) {
   if (trim_str(expr).empty()) throw dslvm::Error(std::string(who) + ": expression is empty");
-  Lepton::CompiledExpression comp;
+  Lepton::ParsedExpression parsed;
   try {
-    comp = Lepton::Parser::parse(expr).createCompiledExpression();
+    parsed = Lepton::Parser::parse(expr);
   } catch (const std::exception &e) {
     throw dslvm::Error(std::string(who) + ": expression \"" + expr + "\": " + e.what());
   }
-  for (const auto &v : comp.getVariables()) {
+  lepton_scan(parsed.getRootNode(), vars, expr, who);
+  return parsed;
+}
+
+void validate_lepton(const std::string &expr, const std::set<std::string> &allowed, const char *who) {
+  std::set<std::string> vars;
+  parse_lepton(expr, vars, who);
+  for (const auto &v : vars) {
     if (allowed.find(v) == allowed.end() && v != "pi" && v != "e")
       throw dslvm::Error(std::string(who) + ": expression \"" + expr + "\": unknown name '" + v + "'");
   }
@@ -526,26 +551,22 @@ void register_host(dslvm::Registry &r, Host &h) {
     return Value::object("Md", p);
   });
   method(r, "Md", "eval", {"string"}, "float", [](void *, Args &a) {
-    if (trim_str(a[0].s).empty()) throw dslvm::Error("Md.eval: expression is empty");
     std::map<std::string, double> consts = {
         {"pi", 3.14159265358979323846},
         {"e", 2.71828182845904523536},
         {"kB", BOLTZ},
         {"one_4pi_eps0", ONE_4PI_EPS0},
     };
-    Lepton::CompiledExpression comp;
-    try {
-      comp = Lepton::Parser::parse(a[0].s).createCompiledExpression();
-    } catch (const std::exception &e) {
-      throw dslvm::Error("Md.eval: expression \"" + a[0].s + "\": " + e.what());
-    }
-    for (const auto &v : comp.getVariables()) {
-      auto it = consts.find(v);
-      if (it == consts.end())
+    std::set<std::string> vars;
+    Lepton::ParsedExpression parsed = parse_lepton(a[0].s, vars, "Md.eval");
+    for (const auto &v : vars) {
+      if (consts.find(v) == consts.end())
         throw dslvm::Error("Md.eval: expression \"" + a[0].s + "\": unknown name '" + v + "'");
-      comp.getVariableReference(v) = it->second;
     }
-    return Value::real(comp.evaluate());
+    double v = parsed.evaluate(consts);
+    if (!std::isfinite(v))
+      throw dslvm::Error("Md.eval: expression \"" + a[0].s + "\" is not finite (" + fmt(v) + ")");
+    return Value::real(v);
   });
   method(r, "Md", "assert_close", {"float", "float", "float"}, "void", [](void *, Args &a) {
     if (!std::isfinite(a[2].f) || a[2].f < 0.0)
