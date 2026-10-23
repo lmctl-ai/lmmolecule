@@ -1,0 +1,52 @@
+# Liquid argon density at 1 bar and 94.4 K from an NPT run (Monte Carlo barostat + Langevin).
+# 256 atoms start as a random gas at 0.97 g/cm^3 (a lattice start would stay a metastable crystal
+# this close to the Lennard-Jones triple point); the barostat shrinks the box until the density
+# fluctuates around the measured density of liquid argon at 94.4 K, 1.374 g/cm^3 (Rahman 1964).
+mkdir("build/stories");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("cpu");
+let n = 256;
+let mass = 39.948;
+# g/cm^3 = N m [amu] * 1.66054e-24 g / (V [nm^3] * 1e-21 cm^3)
+let gcc = float(n) * mass * 0.00166054;
+let temp = 94.4;
+let sys = md.system().gas(n, 2.60, mass, 7).lj(0.996, 0.3405, 1.0).dispersion_correction(true).barostat(1.0, temp, 25, 7);
+let sim = sys.sim("langevin", 0.002, temp, 2.0, 7);
+sim.minimize(10.0, 200).velocities(temp, 7);
+md.print("time_ps,density_g_cm3,volume_nm3,temperature_K");
+for (i in range(0, 201)) {
+  let v = sim.box_volume();
+  md.print(str(0.2 * float(i)) + "," + str(gcc / v) + "," + str(v) + "," + str(sim.temperature()));
+  sim.step(100);
+}
+let final_density = gcc / sim.box_volume();
+md.print("final density " + str(final_density));
+md.assert_close(final_density, 1.374, 0.12);
+end _dsl_
+savedsl(sim_prog, "build/stories/npt_density-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/stories/npt_density-sim.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+write_file("build/stories/npt.csv", split(split(r.stdout, "final density")[0], "{\"ok\"")[0]);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.cmd("set datafile separator ','");
+plot.cmd("stats [20:40] 'build/stories/npt.csv' every ::1 using 1:2 nooutput");
+let mean_density = plot.num("STATS_mean_y");
+plot.echo("mean density over 20-40 ps: " + str(mean_density) + " g/cm^3");
+plot.png("docs/images/npt_density.png", 900, 560);
+plot.cmd("set title 'NPT argon at 1 bar, 94.4 K: the barostat finds the liquid density from a random gas'");
+plot.cmd("set xlabel 'Time (ps)'; set ylabel 'Density (g/cm^3)'; set grid; set key off");
+plot.cmd("set yrange [0.9:1.7]");
+plot.cmd("set arrow from 0, 1.374 to 40, 1.374 nohead dt 2 lc rgb '#d62728'");
+plot.cmd("set label 'liquid argon at 94.4 K: 1.374 g/cm^3 (Rahman 1964)' at 20, 1.43 tc rgb '#d62728' font ',10'");
+plot.cmd("set label 'instantaneous density of 256 atoms: LJ cutoff 1 nm + tail correction, Monte Carlo barostat every 25 steps' at 1, 1.62 tc rgb '#1f77b4' font ',10'");
+plot.cmd("set label sprintf('mean over 20-40 ps: %.3f g/cm^3', STATS_mean_y) at 1, 1.55 tc rgb '#1f77b4' font ',10'");
+plot.cmd("plot 'build/stories/npt.csv' every ::1 using 1:2 with lines lw 2 lc rgb '#1f77b4' title 'instantaneous density (256 atoms, LJ cutoff 1 nm + tail correction, MC barostat every 25 steps)'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/stories/npt_density-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/stories/npt_density-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+println(split(r.stdout, "{\"ok\"")[0]);
+println("wrote docs/images/npt_density.png");

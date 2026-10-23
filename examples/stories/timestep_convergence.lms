@@ -1,0 +1,54 @@
+# Why MD uses a 1-2 fs step: Verlet energy error vs time step for a Morse diatomic.
+# The bond has a vibrational period of 33.8 fs. For every dt the dimer runs 2 ps and records the
+# largest relative total-energy error; velocity Verlet is second order, so the error grows as dt^2
+# until the step approaches 2/omega = 10.8 fs, where the integration becomes unstable.
+mkdir("build/stories");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+md.print("dt_fs,max_rel_energy_error,steps");
+for (k in range(0, 11)) {
+  let dt_fs = md.eval("0.25 * 2^(" + str(k) + " / 2.0)");
+  let dt = dt_fs * 0.001;
+  let steps = int(2.0 / dt);
+  let sys = md.system().add_particle(2.0, -0.10, 0.0, 0.0).add_particle(2.0, 0.10, 0.0, 0.0)
+    .custom_bond(0, 1, "120.0*(1 - exp(-12.0*(r - 0.16)))^2");
+  let sim = sys.sim("verlet", dt, 0.0, 0.0, 1);
+  let e0 = sim.energy();
+  let worst = 0.0;
+  let chunk = 20;
+  let done = 0;
+  while (done < steps) {
+    sim.step(chunk);
+    done = done + chunk;
+    let err = md.eval("abs(" + str((sim.energy() - e0) / e0) + ")");
+    if (err > worst) { worst = err; }
+  }
+  md.print(str(dt_fs) + "," + str(worst) + "," + str(done));
+}
+end _dsl_
+savedsl(sim_prog, "build/stories/timestep_convergence-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/stories/timestep_convergence-sim.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+write_file("build/stories/timestep.csv", split(r.stdout, "{\"ok\"")[0]);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.cmd("set datafile separator ','");
+plot.cmd("set fit quiet; set fit logfile '/dev/null'");
+plot.cmd("p(x) = a * x**2; a = 1e-4");
+plot.cmd("fit [0.2:3] p(x) 'build/stories/timestep.csv' every ::1 using 1:2 via a");
+plot.png("docs/images/timestep_convergence.png", 900, 560);
+plot.cmd("set title 'Velocity Verlet on a Morse bond (period 33.8 fs): energy error vs time step'");
+plot.cmd("set xlabel 'Time step (fs)'; set ylabel 'max |E(t) - E_0| / E_0 over 2 ps'; set grid; set key top left");
+plot.cmd("set logscale xy; set xrange [0.2:12]; set yrange [1e-6:10]; set format y '10^{%T}'");
+plot.cmd("set arrow from 10.8, 1e-6 to 10.8, 10 nohead dt 2 lc rgb '#d62728'");
+plot.cmd("set label 'stability limit 2/{/Symbol w} = 10.8 fs' at 10.3, 3e-3 right tc rgb '#d62728' font ',10'");
+plot.cmd("set arrow from 1.0, 1e-6 to 1.0, 10 nohead dt 3 lc rgb '#2ca02c'");
+plot.cmd("set label 'usual 1 fs' at 1.05, 2e-6 tc rgb '#2ca02c' font ',10'");
+plot.cmd("plot p(x) with lines lw 2 lc rgb '#888888' title 'second-order fit a dt^2', 'build/stories/timestep.csv' every ::1 using 1:2 with linespoints pt 7 ps 1.3 lw 2 lc rgb '#1f77b4' title 'measured'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/stories/timestep_convergence-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/stories/timestep_convergence-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+println("wrote docs/images/timestep_convergence.png");

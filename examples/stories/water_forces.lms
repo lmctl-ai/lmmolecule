@@ -1,0 +1,106 @@
+# Force diagram of a bent water molecule.
+# A flexible water (harmonic O-H bonds and a harmonic H-O-H angle, SPC/Fw-like constants) is
+# built with the angle squeezed to 85 degrees instead of its 113.24 degree rest value. lmmolecule
+# evaluates the restoring forces on every atom; lmdraw draws the molecule with the force vectors,
+# which must sum to zero (Newton's third law) and must point so as to open the angle.
+mkdir("build/stories");
+mkdir("build/rendered");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let r_oh = 0.1012;
+let theta0 = 113.24;
+let k_bond = 443153.0;
+let k_angle = 317.5655;
+let bent = 85.0;
+let half = md.eval(str(bent) + " / 2 * pi / 180");
+let hx = r_oh * md.eval("cos(" + str(half) + ")");
+let hy = r_oh * md.eval("sin(" + str(half) + ")");
+let sys = md.system()
+  .add_particle(15.9994, 0.0, 0.0, 0.0)
+  .add_particle(1.008, hx, hy, 0.0)
+  .add_particle(1.008, hx, -hy, 0.0)
+  .bond(0, 1, r_oh, k_bond).bond(0, 2, r_oh, k_bond)
+  .angle(1, 0, 2, md.eval(str(theta0) + " * pi / 180"), k_angle);
+let sim = sys.sim("verlet", 0.0005, 0.0, 0.0, 1);
+let pe = sim.pe();
+# Only the angle term is strained: E = 0.5 k (theta - theta0)^2.
+let strain = md.eval("0.5 * " + str(k_angle) + " * ((" + str(bent) + " - " + str(theta0) + ") * pi / 180)^2");
+md.assert_close(pe, strain, 0.000001);
+md.assert_close(sim.fx(0) + sim.fx(1) + sim.fx(2), 0.0, 0.000001);
+md.assert_close(sim.fy(0) + sim.fy(1) + sim.fy(2), 0.0, 0.000001);
+for (i in range(0, 3)) {
+  md.print("atom," + str(i) + "," + str(sim.x(i)) + "," + str(sim.y(i)) + "," + str(sim.fx(i)) + "," + str(sim.fy(i)));
+}
+md.print("energy," + str(pe) + "," + str(sim.angle_val(1, 0, 2) * 180.0 / md.eval("pi")));
+# Let the molecule relax to show where the forces lead.
+sim.minimize(0.0001, 500);
+md.print("relaxed," + str(sim.angle_val(1, 0, 2) * 180.0 / md.eval("pi")) + "," + str(sim.pe()));
+end _dsl_
+savedsl(sim_prog, "build/stories/water_forces-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/stories/water_forces-sim.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+
+ax = []; ay = []; fx = []; fy = [];
+energy = 0.0; angle_now = 0.0; angle_relaxed = 0.0;
+for (line in lines(r.stdout)) {
+  f = split(line, ",");
+  if (f[0] == "atom") { push(ax, num(f[2])); push(ay, num(f[3])); push(fx, num(f[4])); push(fy, num(f[5])); }
+  if (f[0] == "energy") { energy = num(f[1]); angle_now = num(f[2]); }
+  if (f[0] == "relaxed") { angle_relaxed = num(f[1]); }
+}
+# Canvas mapping: 1 nm = 1300 px, oxygen at (250.5, 320.5); forces scaled so the largest is 110 px.
+scale = 1300.0;
+cx = 250.5; cy = 320.5;
+fmax = 0.0;
+for (i in range(0, 3)) { m = sqrt(fx[i] * fx[i] + fy[i] * fy[i]); if (m > fmax) { fmax = m; } }
+fscale = 110.0 / fmax;
+fn f1(v) { return str(round(v * 10.0) / 10.0); }
+px = []; py = []; qx = []; qy = []; flabel = [];
+for (i in range(0, 3)) {
+  push(px, cx + scale * ax[i]);
+  push(py, cy - scale * ay[i]);
+  push(qx, cx + scale * ax[i] + fscale * fx[i]);
+  push(qy, cy - scale * ay[i] - fscale * fy[i]);
+  push(flabel, f1(sqrt(fx[i] * fx[i] + fy[i] * fy[i]) / 1000.0) + " kJ/mol/nm x10^3");
+}
+ox = px[0]; oy = py[0]; h1x = px[1]; h1y = py[1]; h2x = px[2]; h2y = py[2];
+ofx = qx[0]; ofy = qy[0]; h1fx = qx[1]; h1fy = qy[1]; h2fx = qx[2]; h2fy = qy[2];
+lo = flabel[0]; l1 = flabel[1]; l2 = flabel[2];
+t_angle = "H-O-H squeezed to " + f1(angle_now) + " deg (rest angle 113.2 deg)";
+t_energy = "strain energy " + f1(energy) + " kJ/mol = 0.5 k (theta - theta0)^2";
+t_relax = "minimization opens it back to " + f1(angle_relaxed) + " deg";
+lo_x = ofx + 10.0; lo_y = ofy + 5.0;
+l1_x = 0.5 * (h1x + h1fx) + 14.0; l1_y = 0.5 * (h1y + h1fy) + 5.0;
+l2_x = 0.5 * (h2x + h2fx) + 14.0; l2_y = 0.5 * (h2y + h2fy) + 5.0;
+draw = _dsl_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
+scene.canvas(900, 560, "#0b1220");
+scene.text(40.0, 50.0, 26.0, "Restoring forces on a bent water molecule", "#e8eef5").set_attr("font-weight", "700");
+scene.text(40.0, 78.0, 15.0, "forces from lmmolecule (OpenMM harmonic bond + angle terms), drawn to scale by lmdraw", "#9db4c8");
+scene.line(${ox}, ${oy}, ${h1x}, ${h1y}, "#8899aa", 8.0);
+scene.line(${ox}, ${oy}, ${h2x}, ${h2y}, "#8899aa", 8.0);
+scene.circle(${h1x}, ${h1y}, 16.0, "#e6ecf2");
+scene.circle(${h2x}, ${h2y}, 16.0, "#e6ecf2");
+scene.circle(${ox}, ${oy}, 28.0, "#e0362b");
+scene.arrow(${ox}, ${oy}, ${ofx}, ${ofy}, "#f5c16c", 4.0);
+scene.arrow(${h1x}, ${h1y}, ${h1fx}, ${h1fy}, "#6fbdb4", 4.0);
+scene.arrow(${h2x}, ${h2y}, ${h2fx}, ${h2fy}, "#6fbdb4", 4.0);
+scene.text(${lo_x}, ${lo_y}, 13.0, ${lo}, "#f5c16c");
+scene.text(${l1_x}, ${l1_y}, 13.0, ${l1}, "#6fbdb4");
+scene.text(${l2_x}, ${l2_y}, 13.0, ${l2}, "#6fbdb4");
+scene.text(${ox - 9.0}, ${oy + 50.0}, 15.0, "O", "#ffb3ad");
+scene.text(${h1x - 36.0}, ${h1y + 6.0}, 15.0, "H", "#e6ecf2");
+scene.text(${h2x - 36.0}, ${h2y + 6.0}, 15.0, "H", "#e6ecf2");
+scene.rect(540.0, 110.0, 330.0, 130.0, "#15233a").set_attr("stroke", "#31465c").set_attr("stroke-width", "1");
+scene.text(556.0, 140.0, 14.0, ${t_angle}, "#e8eef5");
+scene.text(556.0, 170.0, 14.0, ${t_energy}, "#e8eef5");
+scene.text(556.0, 200.0, 14.0, "sum of the three forces = 0 (checked to 1e-6)", "#e8eef5");
+scene.text(556.0, 228.0, 14.0, ${t_relax}, "#9db4c8");
+scene.text(40.0, 548.0, 13.0, "Hydrogens pushed apart, oxygen pulled toward them: only the angle term acts, both bonds sit at their rest length.", "#7f93a8");
+scene.render_png("build/rendered/water_forces.png", 900, 560, 1);
+end _dsl_
+savedsl(draw, "build/stories/water_forces-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/stories/water_forces-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+copy_file("build/rendered/water_forces.png", "docs/images/water_forces.png");
+println("wrote docs/images/water_forces.png");

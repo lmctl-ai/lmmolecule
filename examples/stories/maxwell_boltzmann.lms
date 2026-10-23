@@ -1,0 +1,49 @@
+# Maxwell-Boltzmann speed distribution from a thermostatted argon gas.
+# 1000 argon atoms in a 6 nm box under BAOAB Langevin dynamics at 300 K; six snapshots give 6000
+# speeds whose histogram is compared with f(v) = 4 pi v^2 (m / 2 pi kT)^(3/2) exp(-m v^2 / 2kT).
+# The most probable speed sqrt(2kT/m) = 353 m/s and the mean sqrt(8kT/pi m) = 398 m/s are marked.
+mkdir("build/stories");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("cpu");
+let temp = 300.0;
+let mass = 39.948;
+let gas = md.system().gas(1000, 6.0, mass, 2024).lj(0.996, 0.3405, 1.0).sim("langevin", 0.002, temp, 1.0, 7);
+gas.minimize(10.0, 50).velocities(temp, 7).step(1500);
+for (snap in range(0, 6)) {
+  gas.step(250);
+  for (i in range(0, 1000)) {
+    let vx = gas.vx(i);
+    let vy = gas.vy(i);
+    let vz = gas.vz(i);
+    md.print(str(1000.0 * md.eval("sqrt(" + str(vx * vx + vy * vy + vz * vz) + ")")));
+  }
+}
+md.assert_close(gas.temperature(), temp, 30.0);
+end _dsl_
+savedsl(sim_prog, "build/stories/maxwell_boltzmann-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/stories/maxwell_boltzmann-sim.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+write_file("build/stories/speeds.csv", split(r.stdout, "{\"ok\"")[0]);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+# kT in kJ/mol and m in amu give speeds in nm/ps; the data are in m/s, so scale by 1000.
+plot.cmd("kT = 0.008314462618 * 300.0; m = 39.948; s = 1000.0");
+plot.cmd("f(v) = 4 * pi * (v/s)**2 * (m / (2 * pi * kT))**1.5 * exp(-m * (v/s)**2 / (2 * kT)) / s");
+plot.cmd("vp = s * sqrt(2 * kT / m); vmean = s * sqrt(8 * kT / (pi * m))");
+plot.cmd("w = 20.0; n = 6000.0; bin(x) = w * floor(x / w) + w / 2");
+plot.png("docs/images/maxwell_boltzmann.png", 900, 560);
+plot.cmd("set title 'Argon at 300 K: simulated speeds vs the Maxwell-Boltzmann distribution'");
+plot.cmd("set xlabel 'Speed (m/s)'; set ylabel 'Probability density (s/m)'; set grid; set key at 1180, 0.0021 right top");
+plot.cmd("set xrange [0:1200]; set style fill solid 0.45 border lc rgb '#1f77b4'; set boxwidth w");
+plot.cmd("set arrow from vp, 0 to vp, f(vp) nohead dt 2 lc rgb '#d62728'");
+plot.cmd("set label sprintf('v_p = %.0f m/s', vp) at vp - 15, f(vp) * 1.03 right tc rgb '#d62728' font ',10'");
+plot.cmd("set arrow from vmean, 0 to vmean, f(vmean) nohead dt 2 lc rgb '#2ca02c'");
+plot.cmd("set label sprintf('mean %.0f m/s', vmean) at vmean + 12, f(vmean) * 1.12 front tc rgb '#2ca02c' font ',10'");
+plot.cmd("plot 'build/stories/speeds.csv' using (bin($1)):(1.0 / (n * w)) smooth frequency with boxes lc rgb '#1f77b4' title '6000 sampled speeds (BAOAB Langevin)', f(x) with lines lw 3 lc rgb '#d62728' title 'Maxwell-Boltzmann f(v)'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/stories/maxwell_boltzmann-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/stories/maxwell_boltzmann-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+println("wrote docs/images/maxwell_boltzmann.png");

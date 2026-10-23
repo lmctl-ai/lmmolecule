@@ -1,0 +1,119 @@
+# Liquid water: 216 rigid TIP3P molecules with PME electrostatics, equilibrated at 300 K.
+# A dashboard checks the model against what every water paper reports: the O-O pair correlation
+# (first peak near 2.8 A), the O-H correlation (hydrogen-bond peak near 1.8 A), the kinetic
+# temperature over the constrained degrees of freedom, and the potential energy per molecule
+# (TIP3P: about -41 kJ/mol = -9.8 kcal/mol, Jorgensen 1983). lmcad renders the final box as
+# ball-and-stick from the computed coordinates.
+mkdir("build/stories");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("cpu");
+md.threads(4);
+let n_side = 6;
+let n_mol = 216.0;
+let box = md.system().water_box("tip3p", n_side, 0.31, 2024).coulomb("pme", 0.9).dispersion_correction(true);
+md.assert_close(float(box.count()), 3.0 * n_mol, 0.0);
+let sim = box.sim("langevin", 0.002, 300.0, 1.0, 11);
+md.assert_close(float(sim.dof()), 6.0 * n_mol, 0.0);
+sim.minimize(10.0, 300).velocities(300.0, 11);
+sim.report("build/stories/water_report.csv", 50).step(3000);
+# One instantaneous T of 1296 degrees of freedom scatters by about 12 K; the dashboard shows the series.
+md.assert_close(sim.temperature(), 300.0, 45.0);
+sim.rdf_pair("build/stories/water_oo.csv", "O", "O", 0.9, 90, 10, 50);
+sim.rdf_pair("build/stories/water_oh.csv", "O", "H", 0.9, 90, 10, 50);
+let pe_mol = sim.pe() / n_mol;
+md.assert_close(pe_mol, -41.0, 4.0);
+# OpenMM never wraps coordinates, so each molecule is moved back into the box by its oxygen.
+let L = float(n_side) * 0.31;
+md.print("t,x,y,z,r,g,b");
+for (k in range(0, int(n_mol))) {
+  let o = 3 * k;
+  let sx = L * floor(sim.x(o) / L);
+  let sy = L * floor(sim.y(o) / L);
+  let sz = L * floor(sim.z(o) / L);
+  md.print(str(o) + "," + str(sim.x(o) - sx) + "," + str(sim.y(o) - sy) + "," + str(sim.z(o) - sz) + ",0.92,0.18,0.12");
+  md.print(str(o + 1) + "," + str(sim.x(o + 1) - sx) + "," + str(sim.y(o + 1) - sy) + "," + str(sim.z(o + 1) - sz) + ",0.90,0.92,0.96");
+  md.print(str(o + 2) + "," + str(sim.x(o + 2) - sx) + "," + str(sim.y(o + 2) - sy) + "," + str(sim.z(o + 2) - sz) + ",0.90,0.92,0.96");
+}
+md.print("pe_per_molecule " + str(pe_mol));
+end _dsl_
+savedsl(sim_prog, "build/stories/water_box-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/stories/water_box-sim.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+csv = split(split(r.stdout, "pe_per_molecule")[0], "{\"ok\"")[0];
+write_file("build/stories/water_atoms.csv", csv);
+pe_line = split(r.stdout, "pe_per_molecule ")[1];
+pe_mol = num(split(pe_line, "\n")[0]);
+println("TIP3P potential energy per molecule: " + str(pe_mol) + " kJ/mol");
+box_len = 1.86;
+
+render = _dsl_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+scene.background(0.035, 0.055, 0.095);
+scene.ambient(0.35);
+scene.directional_light(-0.6, -1.0, -0.8, 0.85);
+scene.fill_light(0.8, -0.1, 0.5, 0.45);
+let oxygen = material().color(0.92, 0.18, 0.12).roughness(0.4).specular(0.3);
+let hydrogen = material().color(0.90, 0.92, 0.96).roughness(0.45).specular(0.25);
+let bond = material().color(0.55, 0.58, 0.65).roughness(0.6);
+let rows = read_keyframes_csv("build/stories/water_atoms.csv");
+let n = rows.len() / 3;
+for (k in range(0, n)) {
+  let o = rows.at(3 * k);
+  let h1 = rows.at(3 * k + 1);
+  let h2 = rows.at(3 * k + 2);
+  scene.sphere(0.055, oxygen).position(o.x(), o.y(), o.z());
+  scene.sphere(0.032, hydrogen).position(h1.x(), h1.y(), h1.z());
+  scene.sphere(0.032, hydrogen).position(h2.x(), h2.y(), h2.z());
+  scene.tube_between(o.x(), o.y(), o.z(), h1.x(), h1.y(), h1.z(), 0.014, bond);
+  scene.tube_between(o.x(), o.y(), o.z(), h2.x(), h2.y(), h2.z(), 0.014, bond);
+}
+# The periodic cell as a thin wireframe.
+let edge = material().color(0.35, 0.55, 0.75).roughness(0.7);
+let L = ${box_len};
+scene.tube_between(0.0, 0.0, 0.0, L, 0.0, 0.0, 0.006, edge);
+scene.tube_between(0.0, L, 0.0, L, L, 0.0, 0.006, edge);
+scene.tube_between(0.0, 0.0, L, L, 0.0, L, 0.006, edge);
+scene.tube_between(0.0, L, L, L, L, L, 0.006, edge);
+scene.tube_between(0.0, 0.0, 0.0, 0.0, L, 0.0, 0.006, edge);
+scene.tube_between(L, 0.0, 0.0, L, L, 0.0, 0.006, edge);
+scene.tube_between(0.0, 0.0, L, 0.0, L, L, 0.006, edge);
+scene.tube_between(L, 0.0, L, L, L, L, 0.006, edge);
+scene.tube_between(0.0, 0.0, 0.0, 0.0, 0.0, L, 0.006, edge);
+scene.tube_between(L, 0.0, 0.0, L, 0.0, L, 0.006, edge);
+scene.tube_between(0.0, L, 0.0, 0.0, L, L, 0.006, edge);
+scene.tube_between(L, L, 0.0, L, L, L, 0.006, edge);
+scene.fit_camera(30.0, 1.05);
+scene.render_png("docs/images/water_box_render.png", 900, 560);
+scene.render_ppm("build/stories/water_box.ppm", 420, 420);
+end _dsl_
+savedsl(render, "build/stories/water_box-render.dslb");
+r = system ${dsl_cli(render)} --dsl build/stories/water_box-render.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("docs/images/water_box.png", 1000, 760);
+plot.cmd("set multiplot layout 2,2 title '216 TIP3P waters, PME, 300 K: structure, temperature, energy' font ',14'");
+plot.cmd("set grid; set key top right font ',9'");
+plot.cmd("set title 'g(r), 10 frames (covalent O-H excluded)'; set xlabel 'r (nm)'; set ylabel 'g(r)'; set xrange [0.15:0.9]; set yrange [0:3.5]");
+plot.cmd("set arrow from 0.28, 0 to 0.28, 3.5 nohead dt 2 lc rgb '#888888'");
+plot.cmd("set label 1 'exp. O-O peak 2.8 A' at 0.29, 3.3 font ',9' tc rgb '#555555'");
+plot.cmd("plot 'build/stories/water_oo.csv' using 1:2 with lines lw 2.5 lc rgb '#d62728' title 'O-O', 'build/stories/water_oh.csv' using 1:2 with lines lw 2 lc rgb '#1f77b4' title 'O-H (H-bond peak 1.8 A)'");
+plot.cmd("unset arrow; unset label 1");
+plot.cmd("set title 'kinetic temperature (1296 degrees of freedom)'; set xlabel 'Time (ps)'; set ylabel 'T (K)'; set xrange [0:7]; set yrange [200:400]");
+plot.cmd("set arrow from 0, 300 to 7, 300 nohead dt 2 lc rgb '#888888'");
+plot.cmd("plot 'build/stories/water_report.csv' using 2:6 with lines lw 1.5 lc rgb '#2ca02c' title 'T from 2 KE / (dof k_B)'");
+plot.cmd("unset arrow");
+plot.cmd("set title 'potential energy per molecule'; set xlabel 'Time (ps)'; set ylabel 'U / N (kJ/mol)'; set xrange [0:7]; set yrange [-50:-20]");
+plot.cmd("set arrow from 0, -41.1 to 7, -41.1 nohead dt 2 lc rgb '#888888'");
+plot.cmd("set label 2 'TIP3P reference -41.1 kJ/mol (Jorgensen 1983)' at 0.3, -43.5 font ',9' tc rgb '#555555'");
+plot.cmd("plot 'build/stories/water_report.csv' using 2:($4/216.0) with lines lw 1.5 lc rgb '#ff7f0e' title 'U / 216'");
+plot.cmd("unset arrow; unset label 2");
+plot.cmd("set title 'final configuration (lmcad ball-and-stick)'; unset xlabel; unset ylabel; unset grid; unset tics; unset key; set xrange [0:420]; set yrange [0:420]");
+plot.cmd("plot 'build/stories/water_box.ppm' binary array=(420,420) skip=15 flipy format='%uchar' using 1:2:3 with rgbimage");
+plot.cmd("unset multiplot");
+plot.close();
+end _dsl_
+savedsl(draw, "build/stories/water_box-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/stories/water_box-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+println("wrote docs/images/water_box.png and docs/images/water_box_render.png");

@@ -7,8 +7,8 @@ cd "$HERE"
 LMSCRIPT="$(scripts/select-compiler.sh)"
 export PATH="$HERE/build:$HERE/../lmplot/build:$PATH"
 
-if { ! command -v lmplot >/dev/null 2>&1 || ! command -v lmcad >/dev/null 2>&1; } && [ "${LMMOLECULE_TEST_NETWORK:-}" != 1 ]; then
-  echo "render-all: skipped (lmplot and lmcad are required; set LMMOLECULE_TEST_NETWORK=1 to allow install)"
+if { ! command -v lmplot >/dev/null 2>&1 || ! command -v lmcad >/dev/null 2>&1 || ! command -v lmdraw >/dev/null 2>&1; } && [ "${LMMOLECULE_TEST_NETWORK:-}" != 1 ]; then
+  echo "render-all: skipped (lmplot, lmcad and lmdraw are required; set LMMOLECULE_TEST_NETWORK=1 to allow install)"
   exit 0
 fi
 
@@ -17,7 +17,7 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "render-all: animation skipped (ffmpeg is unavailable)"
 fi
 status=0
-for src in examples/*.lms examples/visual/*.lms examples/combo/*.lms; do
+for src in examples/*.lms examples/visual/*.lms examples/combo/*.lms examples/stories/*.lms; do
   [ -f "$src" ] || continue
   echo "render-all: $src"
   if ! "$LMSCRIPT" "$src"; then

@@ -1,0 +1,76 @@
+# Phonons in a one-dimensional crystal: measured normal-mode frequencies against the dispersion
+# relation omega(k) = 2 sqrt(K/m) |sin(k a / 2)| of a monatomic harmonic chain.
+# 32 atoms on a ring (periodic box, harmonic bonds across the boundary) are displaced in a single
+# mode sin(k x) for each allowed wavevector k = 2 pi j / (N a); the mode amplitude is projected
+# out from one atom's displacement and its period gives omega. Dispersion curves of this kind are what inelastic
+# neutron scattering measures in real crystals.
+mkdir("build/stories");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let n = 32;
+let a = 0.3;
+let kspring = 500.0;
+let mass = 12.0;
+let twopi = md.eval("2 * pi");
+md.print("j,k_over_kmax,omega_measured,omega_exact");
+for (j in range(1, 17)) {
+  let kw = twopi * float(j) / (float(n) * a);
+  let sys = md.system().box(float(n) * a, 3.0, 3.0);
+  for (i in range(0, n)) {
+    let x = (float(i) + 0.5) * a + 0.004 * md.eval("sin(" + str(kw * (float(i) + 0.5) * a) + ")");
+    sys.add_particle(mass, x, 1.5, 1.5);
+  }
+  for (i in range(0, n)) {
+    let next = i + 1;
+    if (next == n) { next = 0; }
+    sys.bond(i, next, a, kspring);
+  }
+  let sim = sys.sim("verlet", 0.0005, 0.0, 0.0, 1);
+  # In a pure mode every atom oscillates at omega; atom 8 has a non-zero amplitude sin(8.5 k a) for
+  # all 16 modes, so its displacement from the lattice site gives the period from zero crossings.
+  let x0 = 8.5 * a;
+  let u_prev = sim.x(8) - x0;
+  let crossings = 0;
+  let t_first = 0.0;
+  let t_last = 0.0;
+  for (it in range(0, 40000)) {
+    sim.step(4);
+    let u = sim.x(8) - x0;
+    if ((u_prev < 0.0 && u >= 0.0) || (u_prev > 0.0 && u <= 0.0)) {
+      crossings = crossings + 1;
+      if (crossings == 1) { t_first = sim.time(); }
+      t_last = sim.time();
+    }
+    u_prev = u;
+    if (crossings >= 7) { break; }
+  }
+  md.assert_close(float(crossings), 7.0, 0.0);
+  # Six half periods between the first and seventh zero crossing.
+  let omega = md.eval("pi") * 6.0 / (t_last - t_first);
+  let exact = 2.0 * md.eval("sqrt(" + str(kspring / mass) + ") * abs(sin(" + str(0.5 * kw * a) + "))");
+  md.assert_close(omega, exact, 0.03 * exact);
+  md.print(str(j) + "," + str(2.0 * float(j) / float(n)) + "," + str(omega) + "," + str(exact));
+}
+end _dsl_
+savedsl(sim_prog, "build/stories/phonon_dispersion-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/stories/phonon_dispersion-sim.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+write_file("build/stories/phonons.csv", split(r.stdout, "{\"ok\"")[0]);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.cmd("set datafile separator ','");
+plot.cmd("w(x) = 2 * sqrt(500.0 / 12.0) * abs(sin(x * pi / 2))");
+plot.png("docs/images/phonon_dispersion.png", 900, 560);
+plot.cmd("set title 'Phonon dispersion of a 32-atom harmonic ring (K = 500 kJ/mol/nm^2, m = 12 amu)'");
+plot.cmd("set xlabel 'Wavevector k / k_{max}  (k_{max} = pi/a, zone boundary)'; set ylabel 'Angular frequency (1/ps)'; set grid; set key bottom right");
+plot.cmd("set xrange [0:1]; set yrange [0:14]");
+plot.cmd("set label 'long waves: sound, omega = c k' at 0.08, 2.2 tc rgb '#555555' font ',10' rotate by 52");
+plot.cmd("set label 'zone boundary: neighbours in antiphase, omega_{max} = 2 sqrt(K/m) = 12.9/ps' at 0.33, 13.5 tc rgb '#555555' font ',10'");
+plot.cmd("plot w(x) with lines lw 2 lc rgb '#d62728' title 'omega(k) = 2 sqrt(K/m) |sin(k a / 2)|', 'build/stories/phonons.csv' every ::1 using 2:3 with points pt 7 ps 1.5 lc rgb '#1f77b4' title 'measured from the mode oscillation (16 modes)'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/stories/phonon_dispersion-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/stories/phonon_dispersion-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+println("wrote docs/images/phonon_dispersion.png");

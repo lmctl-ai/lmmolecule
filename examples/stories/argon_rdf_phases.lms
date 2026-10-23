@@ -1,0 +1,49 @@
+# Radial distribution function g(r) of Lennard-Jones argon in three phases.
+# Same 256 atoms, three densities and temperatures: the solid keeps the FCC shell structure
+# (peaks at a/sqrt(2), a, a*sqrt(3/2) ...), the liquid near Rahman's 1964 state point (94.4 K,
+# 1.374 g/cm^3) has one sharp first shell at 1.1 sigma and a damped second one, and the dilute gas
+# at 300 K is flat (g = 1) beyond the first contact.
+mkdir("build/stories");
+mkdir("docs/images");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("cpu");
+let eps = 0.996;
+let sigma = 0.3405;
+let mass = 39.948;
+# Solid: lattice constant 0.54 nm (1.69 g/cm^3) at 40 K, just thermalised.
+let solid = md.system().fcc(4, 0.54, mass).lj(eps, sigma, 1.0).sim("langevin", 0.002, 40.0, 2.0, 11);
+solid.velocities(40.0, 11).step(2000);
+md.assert_close(solid.temperature(), 40.0, 12.0);
+solid.rdf("build/stories/rdf_solid.csv", 1.0, 100, 10, 100);
+# Liquid: 1.374 g/cm^3 is a = 0.5796 nm for 4 atoms per cell; 94.4 K melts the lattice.
+let liquid = md.system().fcc(4, 0.5796, mass).lj(eps, sigma, 1.0).sim("langevin", 0.002, 94.4, 2.0, 12);
+liquid.velocities(94.4, 12).step(6000);
+md.assert_close(liquid.temperature(), 94.4, 15.0);
+liquid.rdf("build/stories/rdf_liquid.csv", 1.0, 100, 20, 100);
+# Gas: a = 1.4 nm (0.097 g/cm^3) at 300 K.
+let gas = md.system().fcc(4, 1.4, mass).lj(eps, sigma, 1.5).sim("langevin", 0.002, 300.0, 2.0, 13);
+gas.velocities(300.0, 13).step(4000);
+gas.rdf("build/stories/rdf_gas.csv", 2.5, 100, 20, 100);
+md.print("solid T " + str(solid.temperature()) + " liquid T " + str(liquid.temperature()) + " gas T " + str(gas.temperature()));
+end _dsl_
+savedsl(sim_prog, "build/stories/argon_rdf_phases-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/stories/argon_rdf_phases-sim.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("docs/images/argon_rdf_phases.png", 900, 560);
+plot.cmd("set title 'Argon pair correlation g(r): one potential, three phases'");
+plot.cmd("set xlabel 'r (nm)'; set ylabel 'g(r)'; set grid; set key at 0.985, 5.2 right top");
+plot.cmd("set xrange [0.25:1.0]; set yrange [0:6]");
+plot.cmd("set arrow from 0.3818, 0 to 0.3818, 6 dt 2 lc rgb '#888888' nohead");
+plot.cmd("set label 'FCC 1st shell a/sqrt(2)' at 0.39, 5.6 tc rgb '#555555' font ',10'");
+plot.cmd("set arrow from 0.54, 0 to 0.54, 6 dt 2 lc rgb '#888888' nohead");
+plot.cmd("set label '2nd shell a' at 0.545, 5.6 tc rgb '#555555' font ',10'");
+plot.cmd("set label 'g = 1: no correlation' at 0.72, 1.25 tc rgb '#2ca02c' font ',10'");
+plot.cmd("plot 1 with lines dt 3 lc rgb '#999999' notitle, 'build/stories/rdf_solid.csv' using 1:2 with lines lw 2.5 lc rgb '#1f77b4' title 'solid, 40 K, 1.69 g/cm^3', 'build/stories/rdf_liquid.csv' using 1:2 with lines lw 2.5 lc rgb '#d62728' title 'liquid, 94.4 K, 1.37 g/cm^3 (Rahman 1964)', 'build/stories/rdf_gas.csv' using 1:2 with lines lw 2.5 lc rgb '#2ca02c' title 'gas, 300 K, 0.10 g/cm^3'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/stories/argon_rdf_phases-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/stories/argon_rdf_phases-draw.dslb;
+assert(r.code == 0, r.stdout + r.stderr);
+println("wrote docs/images/argon_rdf_phases.png");

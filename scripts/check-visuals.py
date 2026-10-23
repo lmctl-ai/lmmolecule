@@ -79,7 +79,7 @@ def check_document_refs(root: Path, document: Path, errors: list[str]) -> None:
         except ValueError:
             errors.append(f"{document.relative_to(root)} reference escapes repository: {target}")
             continue
-        if not path.is_file():
+        if not path.is_file() and not path.is_dir():
             errors.append(f"{document.relative_to(root)} reference does not exist: {target}")
             continue
         if path.suffix.lower() in (".png", ".gif"):
