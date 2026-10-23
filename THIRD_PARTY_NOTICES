@@ -1,4 +1,4 @@
-lmmolecule 0.1.2 includes the third-party software listed below.
+lmmolecule 0.2.0 includes the third-party software listed below.
 
 lmmolecule is distributed under the MIT License (see LICENSE).
 This executable statically links the following third-party software components
