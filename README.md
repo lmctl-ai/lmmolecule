@@ -166,7 +166,7 @@ longest (about 90 s, four CPU threads) and `stories/argon_melt.lms` renders 24 l
   `md.threads(n > 1)` and stochastic integrators across platforms are not. Pictures with text can
   differ by font rendering.
 - `Sim.rdf` is an O(N²) pair loop capped at 20000 particles; `Sim.msd` has no centre-of-mass removal.
-- Six stories need host release 0.1.2 (`water`, `rdf`, `msd`, `save_pdb`, `andersen`, `threads`,
+- Six stories need host release 0.2.0 (`water`, `rdf`, `msd`, `save_pdb`, `andersen`, `threads`,
   `dispersion_correction`): until it is tagged, `lmctl autorun` of `argon_rdf_phases`, `diffusion_msd`, `npt_density`,
   `thermostat_comparison`, `water_box` and `water_dimer` stops at compile time with "has no method"; from a checkout
   with the built host on `PATH` they run. The other 19 captions run against the current release (verified from
