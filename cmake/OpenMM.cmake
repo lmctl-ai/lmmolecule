@@ -55,6 +55,7 @@ list(APPEND OMM_INCLUDES
 )
 
 add_library(openmm STATIC ${OMM_SOURCES})
+set_target_properties(openmm PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
 target_include_directories(openmm SYSTEM PUBLIC ${OMM_INCLUDES})
 target_compile_definitions(openmm PUBLIC
   OPENMM_LIBRARY_NAME=OpenMM
