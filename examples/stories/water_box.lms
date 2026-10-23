@@ -87,7 +87,11 @@ scene.render_png("docs/images/water_box_render.png", 900, 560);
 scene.render_ppm("build/stories/water_box.ppm", 420, 420);
 end _dsl_
 savedsl(render, "build/stories/water_box-render.dslb");
-r = system ${dsl_cli(render)} --dsl build/stories/water_box-render.dslb;
+# Intel macOS needs more than the default 60 s for this 648-atom CAD scene.
+render_argv = dsl_cli(render);
+push(render_argv, "--dsl");
+push(render_argv, "build/stories/water_box-render.dslb");
+r = system(render_argv, 300000);
 assert(r.code == 0, r.stdout + r.stderr);
 
 draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
