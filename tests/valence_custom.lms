@@ -1,0 +1,74 @@
+# Valence forces (harmonic angle, periodic torsion), Lepton custom potentials
+# (Morse custom bond, custom nonbonded, 3D harmonic custom external trap),
+# geometry queries, and XYZ file round-trip.
+out = ARGV.len() > 0 ? ARGV[0] : "build/valence_custom.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let pi = md.eval("pi");
+
+# 1. Harmonic angle: V(theta) = 0.5 * k * (theta - theta0)^2
+# Place 3 atoms at (1,0,0), (0,0,0), (0,1,0) -> angle = pi/2 rad.
+# Set theta0 = pi/3 rad, k = 120.0 kJ/(mol*rad^2) -> dtheta = pi/6, V = 0.5 * 120 * (pi/6)^2 = 16.449340668482265 kJ/mol.
+let ang_sys = md.system()
+  .add_particle(12.0, 1.0, 0.0, 0.0)
+  .add_particle(12.0, 0.0, 0.0, 0.0)
+  .add_particle(12.0, 0.0, 1.0, 0.0)
+  .angle(0, 1, 2, pi / 3.0, 120.0);
+let ang_sim = ang_sys.sim("verlet", 0.001, 0.0, 0.0, 1);
+md.assert_close(ang_sim.angle_val(0, 1, 2), pi / 2.0, 0.0000001);
+let dtheta = pi / 6.0;
+md.assert_close(ang_sim.pe(), 0.5 * 120.0 * dtheta * dtheta, 0.000001);
+
+# 2. Periodic torsion: V(phi) = k * (1 + cos(n*phi - phi0))
+# Atoms at (0,1,0), (0,0,0), (1,0,0), (1,0,1) have dihedral phi = +pi/2 rad in OpenMM's IUPAC convention.
+# With n = 1, phi0 = +pi/2, k = 10.0: cos(0) = 1 -> V = 20.0 kJ/mol.
+let tor_sys = md.system()
+  .add_particle(12.0, 0.0, 1.0, 0.0)
+  .add_particle(12.0, 0.0, 0.0, 0.0)
+  .add_particle(12.0, 1.0, 0.0, 0.0)
+  .add_particle(12.0, 1.0, 0.0, 1.0)
+  .torsion(0, 1, 2, 3, 1, pi / 2.0, 10.0);
+let tor_sim = tor_sys.sim("verlet", 0.001, 0.0, 0.0, 1);
+md.assert_close(tor_sim.pe(), 20.0, 0.000001);
+
+# 3. Custom bond (Morse potential): D*(1 - exp(-a*(r - r0)))^2
+# At r = 0.25 nm with D = 100, a = 10, r0 = 0.15: a*(r-r0) = 1.0, V = 100*(1 - exp(-1))^2 = 39.9576400893728 kJ/mol.
+let morse_sys = md.system()
+  .add_particle(1.008, 0.0, 0.0, 0.0)
+  .add_particle(1.008, 0.25, 0.0, 0.0)
+  .custom_bond(0, 1, "100*(1-exp(-10*(r-0.15)))^2");
+let morse_sim = morse_sys.sim("verlet", 0.0005, 0.0, 0.0, 1);
+md.assert_close(morse_sim.pe(), 39.9576400893728, 0.00001);
+morse_sim.minimize(0.000001, 200);
+md.assert_close(morse_sim.distance(0, 1), 0.15, 0.00001);
+md.assert_close(morse_sim.pe(), 0.0, 0.000001);
+
+# 4. Custom nonbonded soft-core repulsion + custom external harmonic trap + XYZ round-trip.
+let trap_sys = md.system()
+  .add_particle(2.0, 0.30, 0.0, 0.0)
+  .add_particle(2.0, 0.0, 0.40, 0.0)
+  .vel(0, 0.2, -0.1, 0.05)
+  .custom_nonbonded("A/(r^2)", "A=2.5", 0.0)
+  .custom_external("0.5*k*(x^2+y^2+z^2)", "k=10.0");
+let trap_sim = trap_sys.sim("verlet", 0.001, 0.0, 0.0, 1);
+# External energy = 0.5*10*(0.09 + 0.16) = 1.25 kJ/mol; pair r = 0.50 nm -> A/r^2 = 2.5/0.25 = 10.0 kJ/mol; total = 11.25 kJ/mol.
+md.assert_close(trap_sim.distance(0, 1), 0.50, 0.0000001);
+md.assert_close(trap_sim.pe(), 11.25, 0.00001);
+md.assert_close(trap_sim.vx(0), 0.2, 0.0000001);
+md.assert_close(trap_sim.vy(0), -0.1, 0.0000001);
+md.assert_close(trap_sim.vz(0), 0.05, 0.0000001);
+trap_sim.step(50);
+
+# XYZ file save and load round-trip.
+let x0 = trap_sim.x(0);
+let y1 = trap_sim.y(1);
+let z1 = trap_sim.z(1);
+let d01 = trap_sim.distance(0, 1);
+trap_sim.save_xyz("build/test_roundtrip.xyz");
+let loaded = md.system().load_xyz("build/test_roundtrip.xyz", 2.0).sim("verlet", 0.001, 0.0, 0.0, 1);
+md.assert_close(loaded.x(0), x0, 0.000001);
+md.assert_close(loaded.y(1), y1, 0.000001);
+md.assert_close(loaded.z(1), z1, 0.000001);
+md.assert_close(loaded.distance(0, 1), d01, 0.00001);
+end _dsl_
+savedsl(p, out);

@@ -1,0 +1,33 @@
+# Two hosts in one script: lmmolecule integrates an anharmonic Morse diatomic oscillator
+# under NVE Verlet dynamics and writes a CSV trajectory report, then lmplot (gnuplot in a
+# static binary) plots kinetic, potential, and total energy vs time to a PNG.
+mkdir("build/examples");
+sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let sys = md.system()
+  .add_particle(2.0, -0.11, 0.0, 0.0)
+  .add_particle(2.0, 0.11, 0.0, 0.0)
+  .custom_bond(0, 1, "120.0*(1 - exp(-12.0*(r - 0.16)))^2");
+let sim = sys.sim("verlet", 0.0001, 0.0, 0.0, 1);
+let e0 = sim.energy();
+sim.report("build/examples/morse_combo.csv", 10).step(3000);
+md.assert_close((sim.energy() - e0) / e0, 0.0, 0.0001);
+end _dsl_
+savedsl(sim_prog, "build/morse-sim.dslb");
+r = system ${dsl_cli(sim_prog)} --dsl build/morse-sim.dslb;
+assert(r.code == 0);
+
+draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot.png("build/examples/morse_oscillator.png", 900, 560);
+plot.cmd("set title 'Anharmonic Morse Diatomic Oscillator (lmmolecule OpenMM + lmplot)'");
+plot.cmd("set xlabel 'Time (ps)'");
+plot.cmd("set ylabel 'Energy (kJ/mol)'");
+plot.cmd("set grid");
+plot.cmd("set key top right");
+plot.cmd("plot 'build/examples/morse_combo.csv' using 2:3 with lines lw 2 lc rgb '#1f77b4' title 'Kinetic Energy (KE)', '' using 2:4 with lines lw 2 lc rgb '#ff7f0e' title 'Potential Energy (PE)', '' using 2:5 with lines lw 2.5 lc rgb '#2ca02c' title 'Total Energy (E)'");
+plot.close();
+end _dsl_
+savedsl(draw, "build/morse-draw.dslb");
+r = system ${dsl_cli(draw)} --dsl build/morse-draw.dslb;
+assert(r.code == 0);
+println("wrote build/examples/morse_oscillator.png");

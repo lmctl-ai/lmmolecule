@@ -1,0 +1,67 @@
+# Langevin middle (BAOAB) integrator, Maxwell-Boltzmann velocity seeding,
+# deterministic seed reproducibility, FCC lattice / random gas builders, Monte Carlo barostat,
+# and canonical equipartition:
+# For N particles in an external 3D harmonic well V(r) = 0.5*k*(x^2+y^2+z^2) at temperature T:
+#   <KE> = (3/2) * N * k_B * T  and  <PE> = (3/2) * N * k_B * T.
+out = ARGV.len() > 0 ? ARGV[0] : "build/thermostat_ensembles.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+
+# 1. Deterministic seed reproducibility for Langevin dynamics and velocity initialization.
+let s1 = md.system().fcc(2, 0.55, 39.948).lj(0.996, 0.34, 0.50);
+md.assert_close(float(s1.count()), 32.0, 0.0);
+let sim1 = s1.sim("langevin", 0.002, 120.0, 2.0, 12345);
+sim1.velocities(120.0, 54321).step(50);
+
+let s2 = md.system().fcc(2, 0.55, 39.948).lj(0.996, 0.34, 0.50);
+let sim2 = s2.sim("langevin", 0.002, 120.0, 2.0, 12345);
+sim2.velocities(120.0, 54321).step(50);
+
+md.assert_close(sim1.ke(), sim2.ke(), 0.0000000001);
+md.assert_close(sim1.pe(), sim2.pe(), 0.0000000001);
+md.assert_close(sim1.x(0), sim2.x(0), 0.0000000001);
+
+# 2. Canonical equipartition in a 3D harmonic oscillator bank (N = 256 independent particles, T = 300 K).
+# Exact ensemble averages: <KE> = 1.5 * N * R * T, <PE> = 1.5 * N * R * T.
+let n_osc = 256;
+let temp = 300.0;
+let kb_t = md.eval("kB") * temp;
+let exact_mean = 1.5 * float(n_osc) * kb_t;
+let osc = md.system().gas(n_osc, 10.0, 4.0, 777).custom_external("0.5*k*(x^2+y^2+z^2)", "k=25.0");
+let lsim = osc.sim("langevin", 0.005, temp, 5.0, 42);
+lsim.minimize(0.0001, 100);
+lsim.velocities(temp, 42);
+# Equilibrate 1500 steps (7.5 ps), then average 4 snapshots spaced by 250 steps.
+lsim.step(1500);
+let ke1 = lsim.ke();
+let pe1 = lsim.pe();
+let t1 = lsim.temperature();
+lsim.step(250);
+let ke2 = lsim.ke();
+let pe2 = lsim.pe();
+let t2 = lsim.temperature();
+lsim.step(250);
+let ke3 = lsim.ke();
+let pe3 = lsim.pe();
+let t3 = lsim.temperature();
+lsim.step(250);
+let ke4 = lsim.ke();
+let pe4 = lsim.pe();
+let t4 = lsim.temperature();
+
+let mean_ke = 0.25 * (ke1 + ke2 + ke3 + ke4);
+let mean_pe = 0.25 * (pe1 + pe2 + pe3 + pe4);
+let mean_temp = 0.25 * (t1 + t2 + t3 + t4);
+# With 256*3 = 768 degrees of freedom x 4 snapshots = 3072 DOF samples, std error is ~2.5%; check within 8%.
+md.assert_close(mean_ke, exact_mean, 0.08 * exact_mean);
+md.assert_close(mean_pe, exact_mean, 0.08 * exact_mean);
+md.assert_close(mean_temp, temp, 25.0);
+
+# 3. Periodic box volume and Monte Carlo barostat (NPT).
+let npt_sys = md.system().fcc(2, 0.60, 39.948).lj(0.996, 0.34, 0.50).barostat(1.0, 120.0, 10, 99);
+let npt_sim = npt_sys.sim("langevin", 0.002, 120.0, 2.0, 99);
+md.assert_close(npt_sim.box_volume(), 1.728, 0.000001);
+npt_sim.velocities(120.0, 99).step(50);
+md.assert_close(npt_sim.time(), 0.10, 0.000001);
+end _dsl_
+savedsl(p, out);

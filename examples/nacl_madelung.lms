@@ -1,0 +1,20 @@
+# NaCl rock-salt crystal electrostatic lattice energy via Particle Mesh Ewald (PME):
+# Computes the Madelung constant M = 1.747565 from a 4x4x4 rock-salt supercell (512 ions).
+out = ARGV.len() > 0 ? ARGV[0] : "build/nacl_madelung.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("cpu");
+let a_lat = 0.564;
+let d_nn = 0.5 * a_lat;
+let coul = md.eval("one_4pi_eps0");
+
+let sys = md.system()
+  .rocksalt(4, a_lat, 22.98977, 35.453, 1.0)
+  .coulomb("pme", 0.95);
+let sim = sys.sim("verlet", 0.001, 0.0, 0.0, 1);
+let u_total = sim.pe();
+let madelung = -u_total * d_nn / (256.0 * coul);
+md.print("NaCl PME Madelung constant: " + str(madelung));
+md.assert_close(madelung, 1.7475645946, 0.00002);
+end _dsl_
+savedsl(p, out);
+println(f"wrote {out}");

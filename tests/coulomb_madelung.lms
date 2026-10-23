@@ -1,0 +1,42 @@
+# NaCl rock-salt crystal lattice electrostatic energy via Particle Mesh Ewald (PME):
+# Verifies the textbook NaCl Madelung constant M = 1.7475645946... on both Reference and CPU platforms,
+# plus direct two-charge Coulomb energy F_coulomb * q1 * q2 / r in vacuum.
+out = ARGV.len() > 0 ? ARGV[0] : "build/coulomb_madelung.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+let coul = md.eval("one_4pi_eps0");
+
+# 1. Two opposite unit charges separated by r = 0.5 nm in vacuum:
+# U = -ONE_4PI_EPS0 / 0.5 = -2 * 138.935457644382 = -277.870915288764 kJ/mol.
+let pair = md.system()
+  .add_particle(22.99, 0.0, 0.0, 0.0)
+  .add_particle(35.45, 0.5, 0.0, 0.0)
+  .charge(0, 1.0)
+  .charge(1, -1.0)
+  .coulomb("none", 0.0);
+let pair_sim = pair.sim("verlet", 0.001, 0.0, 0.0, 1);
+md.assert_close(pair_sim.pe(), -2.0 * coul, 0.00001);
+md.assert_close(pair_sim.fx(1), -4.0 * coul, 0.0001);
+
+# 2. Periodic 4x4x4 NaCl rock-salt supercell (512 ions = 256 Na+ Cl- pairs, lattice constant a = 0.564 nm,
+# nearest-neighbor d = a / 2 = 0.282 nm). Box length L = 4 * a = 2.256 nm; PME cutoff = 0.95 nm.
+# Madelung constant M = -U * d / (N_pairs * ONE_4PI_EPS0) = 1.7475645946...
+let a_lat = 0.564;
+let d = 0.5 * a_lat;
+md.platform("reference");
+let sys_ref = md.system().rocksalt(4, a_lat, 22.99, 35.45, 1.0).coulomb("pme", 0.95);
+md.assert_close(float(sys_ref.count()), 512.0, 0.0);
+let sim_ref = sys_ref.sim("verlet", 0.001, 0.0, 0.0, 1);
+let u_ref = sim_ref.pe();
+let madelung_ref = -u_ref * d / (256.0 * coul);
+md.assert_close(madelung_ref, 1.7475645946, 0.00002);
+
+# 3. Same PME NaCl lattice on the multithreaded SIMD CPU platform: must match Reference and exact Madelung constant.
+md.platform("cpu");
+let sys_cpu = md.system().rocksalt(4, a_lat, 22.99, 35.45, 1.0).coulomb("pme", 0.95);
+let sim_cpu = sys_cpu.sim("verlet", 0.001, 0.0, 0.0, 1);
+let u_cpu = sim_cpu.pe();
+let madelung_cpu = -u_cpu * d / (256.0 * coul);
+md.assert_close(madelung_cpu, 1.7475645946, 0.00002);
+md.assert_close(madelung_cpu, madelung_ref, 0.00001);
+end _dsl_
+savedsl(p, out);

@@ -1,0 +1,241 @@
+lmmolecule is distributed under the MIT License (see LICENSE).
+This executable statically links the following third-party software components
+from OpenMM 8.2.0 (commit 53770948682c40bd460b39830d4e0f0fd3a4b868,
+https://github.com/openmm/openmm) and cpp-dsl-sdk:
+only the MIT/BSD/zlib/permissive OpenMM API, Reference Platform, CPU Platform,
+and their permissive bundled support libraries are compiled; the LGPL CUDA,
+OpenCL, and CPU-PME plugin libraries are excluded and not compiled or linked.
+
+================================================================================
+1. OpenMM (API, Reference Platform, CPU Platform, Lepton, Serialization)
+================================================================================
+
+OpenMM was developed by Simbios, the NIH National Center for Physics-Based
+Simulation of Biological Structures at Stanford, funded under the NIH Roadmap
+for Medical Research, grant U54 GM072970. See https://simtk.org.
+
+Portions copyright (c) 2008-2024 Stanford University and the Authors.
+
+The OpenMM API, the Reference Platform, and the CPU platform may be used under
+the terms of the MIT License:
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject
+to the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS, CONTRIBUTORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+================================================================================
+2. OpenMM ReferencePME
+================================================================================
+
+Copyright (c) 2009-2022, Erik Lindahl, Rossen Apostolov, Szilard Pall, Peter Eastman
+All rights reserved.
+Contact: lindahl@cbr.su.se Stockholm University, Sweden.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer. Redistributions in binary
+form must reproduce the above copyright notice, this list of conditions and
+the following disclaimer in the documentation and/or other materials provided
+with the distribution.
+Neither the name of the author/university nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+3. PocketFFT
+================================================================================
+
+Copyright (C) 2010-2021 Max-Planck-Society
+Copyright (C) 2019-2020 Peter Bell
+
+For the odd-sized DCT-IV transforms:
+  Copyright (C) 2003, 2007-14 Matteo Frigo
+  Copyright (C) 2003, 2007-14 Massachusetts Institute of Technology
+
+Authors: Martin Reinecke, Peter Bell
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this
+  list of conditions and the following disclaimer in the documentation and/or
+  other materials provided with the distribution.
+* Neither the name of the copyright holder nor the names of its contributors may
+  be used to endorse or promote products derived from this software without
+  specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+4. SIMD-oriented Fast Mersenne Twister (SFMT)
+================================================================================
+
+OpenMM uses the SFMT library which is copyright 2006-2007 Mutsuo Saito, Makoto
+Matsumoto and Hiroshima University. It may be used under the following terms:
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+    * Neither the name of the Hiroshima University nor the names of
+      its contributors may be used to endorse or promote products
+      derived from this software without specific prior written
+      permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+5. L-BFGS (liblbfgs)
+================================================================================
+
+OpenMM uses the L-BFGS library by Jorge Nocedal and Naoaki Okazaki. It may be
+used under the following license:
+
+Copyright (c) 1990, Jorge Nocedal
+Copyright (c) 2007-2010 Naoaki Okazaki
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+================================================================================
+6. Hilbert Curve
+================================================================================
+
+OpenMM uses an implementation of Hilbert curves which is copyright 1998-2000
+Rice University. It may be used under the following terms:
+
+This software is copyrighted by Rice University. It may be freely copied,
+modified, and redistributed, provided that the copyright notice is
+preserved on all copies.
+
+There is no warranty or other guarantee of fitness for this software,
+it is provided solely "as is". Bug reports or fixes may be sent
+to the author, who may or may not act on them as he desires.
+
+Hilbert Curve implementation copyright 1998, Rice University
+
+================================================================================
+7. Vecmath (sse_mathfun / neon_mathfun) and irrXML
+================================================================================
+
+sse_mathfun.h / neon_mathfun.h:
+Copyright (C) 2007, 2011 Julien Pommier
+
+irrXML:
+Copyright (C) 2002-2005 Nikolaus Gebhardt
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+
+================================================================================
+8. dtoa / g_fmt
+================================================================================
+
+The author of this software is David M. Gay.
+
+Copyright (c) 1991, 1996, 2000, 2001 by Lucent Technologies.
+
+Permission to use, copy, modify, and distribute this software for any
+purpose without fee is hereby granted, provided that this entire notice
+is included in all copies of any software which is or includes a copy
+or modification of this software and in all copies of the supporting
+documentation for such software.
+
+THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT ANY EXPRESS OR IMPLIED
+WARRANTY. IN PARTICULAR, NEITHER THE AUTHOR NOR LUCENT MAKES ANY
+REPRESENTATION OR WARRANTY OF ANY KIND CONCERNING THE MERCHANTABILITY
+OF THIS SOFTWARE OR ITS FITNESS FOR ANY PARTICULAR PURPOSE.
+
+================================================================================
+9. Quern, JAMA/TNT, and cpp-dsl-sdk
+================================================================================
+
+- Quern sparse QR library by Robert Bridson: Public Domain.
+- JAMA/TNT matrix templates by NIST: Public Domain.
+- cpp-dsl-sdk (cpp/dslvm.hpp): Copyright (c) 2026 Lattice Systems LLC, MIT License.

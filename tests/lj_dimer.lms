@@ -1,0 +1,42 @@
+# Lennard-Jones dimer: analytical energy/force check, L-BFGS minimization to r_min = 2^(1/6)*sigma
+# and V_min = -epsilon, and 1-2 bond exclusion check.
+out = ARGV.len() > 0 ? ARGV[0] : "build/lj_dimer.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+let sigma = 0.34;
+let eps = 1.25;
+let r_init = 0.40;
+let sys = md.system()
+  .add_particle(39.948, -0.20, 0.0, 0.0)
+  .add_particle(39.948, 0.20, 0.0, 0.0)
+  .lj(eps, sigma, 0.0);
+
+let sim = sys.sim("verlet", 0.001, 0.0, 0.0, 1);
+# Analytical LJ energy V(r) = 4*eps*((sigma/r)^12 - (sigma/r)^6) at r = 0.40 nm:
+# sigma/r = 0.85, (0.85)^6 = 0.377149515625, (0.85)^12 = 0.14224175713672266
+# V(0.40) = 4 * 1.25 * (0.14224175713672266 - 0.377149515625) = -1.1745387924413868 kJ/mol
+# F_x on particle 1 (at +0.20): -dV/dr = 24*(eps/r)*(2*(sigma/r)^12 - (sigma/r)^6) = -6.949950100134278 kJ/(mol*nm)
+md.assert_close(sim.distance(0, 1), r_init, 0.000000000001);
+md.assert_close(sim.pe(), -1.1745387924413868, 0.0000001);
+md.assert_close(sim.fx(1), -6.949950100134278, 0.00001);
+md.assert_close(sim.fx(0), 6.949950100134278, 0.00001);
+
+# L-BFGS energy minimization must converge to r_min = 2^(1/6)*sigma = 0.3816370964251868 nm, V_min = -eps = -1.25 kJ/mol.
+sim.minimize(0.000001, 500);
+md.assert_close(sim.distance(0, 1), 0.3816370964251868, 0.00001);
+md.assert_close(sim.pe(), -eps, 0.000001);
+md.assert_close(sim.fx(0), 0.0, 0.0001);
+md.assert_close(sim.fx(1), 0.0, 0.0001);
+
+# Verify 1-2 exclusion removes nonbonded interaction completely, and lj_particle overrides per-atom parameters.
+let sys_excl = md.system()
+  .add_particle(39.948, -0.20, 0.0, 0.0)
+  .add_particle(39.948, 0.20, 0.0, 0.0)
+  .lj_particle(0, eps, sigma)
+  .lj_particle(1, eps, sigma)
+  .charge(0, 1.0)
+  .charge(1, -1.0)
+  .exclude(0, 1);
+let sim_excl = sys_excl.sim("verlet", 0.001, 0.0, 0.0, 1);
+md.assert_close(sim_excl.pe(), 0.0, 0.000000000001);
+end _dsl_
+savedsl(p, out);

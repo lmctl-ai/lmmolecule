@@ -1,0 +1,19 @@
+# Anharmonic Morse diatomic oscillator via Lepton custom_bond:
+# Integrates NVE Verlet dynamics and writes a thermodynamic report CSV.
+out = ARGV.len() > 0 ? ARGV[0] : "build/morse_dimer.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("reference");
+let sys = md.system()
+  .add_particle(2.0, -0.11, 0.0, 0.0)
+  .add_particle(2.0, 0.11, 0.0, 0.0)
+  .custom_bond(0, 1, "120.0*(1 - exp(-12.0*(r - 0.16)))^2");
+
+let sim = sys.sim("verlet", 0.0002, 0.0, 0.0, 1);
+let e0 = sim.energy();
+sim.report("build/examples/morse.csv", 10).step(2000);
+let e1 = sim.energy();
+md.print("Morse oscillator initial/final energy (kJ/mol): " + str(e0) + " / " + str(e1));
+md.assert_close((e1 - e0) / e0, 0.0, 0.0001);
+end _dsl_
+savedsl(p, out);
+println(f"wrote {out}");

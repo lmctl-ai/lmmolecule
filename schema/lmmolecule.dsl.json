@@ -1,0 +1,482 @@
+{
+  "dsl.schema": 2,
+  "name": "lmmolecule",
+  "types": {
+    "Md": {
+      "methods": {
+        "system": [
+          {
+            "params": [],
+            "returns": "System"
+          }
+        ],
+        "platform": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Md"
+          }
+        ],
+        "eval": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "float"
+          }
+        ],
+        "assert_close": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "void"
+          }
+        ],
+        "print": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
+        "version": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ]
+      }
+    },
+    "System": {
+      "methods": {
+        "box": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "particle": [
+          {
+            "params": [
+              "float"
+            ],
+            "returns": "int"
+          }
+        ],
+        "add_particle": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "count": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "fcc": [
+          {
+            "params": [
+              "int",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "rocksalt": [
+          {
+            "params": [
+              "int",
+              "float",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "gas": [
+          {
+            "params": [
+              "int",
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "System"
+          }
+        ],
+        "load_xyz": [
+          {
+            "params": [
+              "string",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "pos": [
+          {
+            "params": [
+              "int",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "vel": [
+          {
+            "params": [
+              "int",
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "bond": [
+          {
+            "params": [
+              "int",
+              "int",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "angle": [
+          {
+            "params": [
+              "int",
+              "int",
+              "int",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "torsion": [
+          {
+            "params": [
+              "int",
+              "int",
+              "int",
+              "int",
+              "int",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "lj": [
+          {
+            "params": [
+              "float",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "lj_particle": [
+          {
+            "params": [
+              "int",
+              "float",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "charge": [
+          {
+            "params": [
+              "int",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "coulomb": [
+          {
+            "params": [
+              "string",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "exclude": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "System"
+          }
+        ],
+        "custom_external": [
+          {
+            "params": [
+              "string",
+              "string"
+            ],
+            "returns": "System"
+          }
+        ],
+        "custom_bond": [
+          {
+            "params": [
+              "int",
+              "int",
+              "string"
+            ],
+            "returns": "System"
+          }
+        ],
+        "custom_nonbonded": [
+          {
+            "params": [
+              "string",
+              "string",
+              "float"
+            ],
+            "returns": "System"
+          }
+        ],
+        "barostat": [
+          {
+            "params": [
+              "float",
+              "float",
+              "int",
+              "int"
+            ],
+            "returns": "System"
+          }
+        ],
+        "sim": [
+          {
+            "params": [
+              "string",
+              "float",
+              "float",
+              "float",
+              "int"
+            ],
+            "returns": "Sim"
+          }
+        ]
+      }
+    },
+    "Sim": {
+      "methods": {
+        "velocities": [
+          {
+            "params": [
+              "float",
+              "int"
+            ],
+            "returns": "Sim"
+          }
+        ],
+        "minimize": [
+          {
+            "params": [
+              "float",
+              "int"
+            ],
+            "returns": "Sim"
+          }
+        ],
+        "report": [
+          {
+            "params": [
+              "string",
+              "int"
+            ],
+            "returns": "Sim"
+          }
+        ],
+        "xyz": [
+          {
+            "params": [
+              "string",
+              "int"
+            ],
+            "returns": "Sim"
+          }
+        ],
+        "save_xyz": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Sim"
+          }
+        ],
+        "step": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "Sim"
+          }
+        ],
+        "ke": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "pe": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "energy": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "temperature": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "time": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ],
+        "x": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "y": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "z": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "vx": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "vy": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "vz": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "fx": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "fy": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "fz": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "distance": [
+          {
+            "params": [
+              "int",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "angle_val": [
+          {
+            "params": [
+              "int",
+              "int",
+              "int"
+            ],
+            "returns": "float"
+          }
+        ],
+        "box_volume": [
+          {
+            "params": [],
+            "returns": "float"
+          }
+        ]
+      }
+    }
+  },
+  "functions": {},
+  "context": {
+    "md": "Md"
+  }
+}

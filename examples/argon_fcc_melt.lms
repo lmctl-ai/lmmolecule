@@ -1,0 +1,27 @@
+# FCC argon crystal equilibration: 3x3x3 supercell (108 Ar atoms), L-BFGS energy minimization,
+# and BAOAB Langevin middle thermostatting at 120 K with CSV and XYZ trajectory reporters.
+out = ARGV.len() > 0 ? ARGV[0] : "build/argon_fcc_melt.dslb";
+p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+md.platform("cpu");
+let sys = md.system()
+  .fcc(3, 0.54, 39.948)
+  .lj(0.996, 0.3405, 0.78);
+md.assert_close(float(sys.count()), 108.0, 0.0);
+
+let sim = sys.sim("langevin", 0.002, 120.0, 5.0, 42);
+sim.minimize(0.001, 200);
+let pe_cryst = sim.pe() / 108.0;
+md.print("FCC Ar cohesive PE per atom (kJ/mol): " + str(pe_cryst));
+# Cohesive energy per atom in an FCC LJ lattice near equilibrium is ~ -7.7 kJ/mol.
+md.assert_close(pe_cryst, -7.7, 0.5);
+
+sim.velocities(120.0, 42)
+  .report("build/examples/argon_fcc.csv", 50)
+  .xyz("build/examples/argon_fcc.xyz", 200)
+  .step(800);
+
+md.assert_close(sim.time(), 1.60, 0.000001);
+md.assert_close(sim.temperature(), 120.0, 35.0);
+end _dsl_
+savedsl(p, out);
+println(f"wrote {out}");

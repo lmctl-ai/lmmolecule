@@ -1,0 +1,2 @@
+# name repo commit  (scripts/sync-deps.sh fetches each into third_party/NAME)
+openmm https://github.com/openmm/openmm.git 53770948682c40bd460b39830d4e0f0fd3a4b868
