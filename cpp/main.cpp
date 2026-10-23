@@ -1100,7 +1100,7 @@ void register_host(dslvm::Registry &r, Host &h) {
         continue;
       }
       if (rec != "ATOM  " && rec != "HETATM") continue;
-      if (S(p).particles.size() >= 100000) throw dslvm::Error("System.load_pdb: particle count limit exceeded");
+      need_room(S(p), 1, "System.load_pdb");
       std::string xs = pdb_field(line, 31, 38), ys = pdb_field(line, 39, 46), zs = pdb_field(line, 47, 54);
       size_t ux = 0, uy = 0, uz = 0;
       double x = 0, y = 0, z = 0;
@@ -1145,7 +1145,7 @@ void register_host(dslvm::Registry &r, Host &h) {
     const WaterModel *w = water_model(a[0].s, "System.water");
     if (!std::isfinite(a[1].f) || !std::isfinite(a[2].f) || !std::isfinite(a[3].f))
       throw dslvm::Error("System.water: coordinates must be finite");
-    if (S(p).particles.size() + 3 > 100000) throw dslvm::Error("System.water: particle count limit exceeded");
+    need_room(S(p), 3, "System.water");
     const double identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     S(p).add_water(*w, OpenMM::Vec3(a[1].f, a[2].f, a[3].f), identity);
     return Value::object("System", p);
@@ -1159,8 +1159,7 @@ void register_host(dslvm::Registry &r, Host &h) {
       throw dslvm::Error("System.water_box: spacing must be positive (0.31 nm is liquid density)");
     if (spacing < 2.0 * w->r_oh)
       throw dslvm::Error("System.water_box: spacing " + fmt(spacing) + " nm is below the molecule size");
-    if (S(p).particles.size() + 3 * (size_t)(n * n * n) > 100000)
-      throw dslvm::Error("System.water_box: particle count limit exceeded");
+    need_room(S(p), 3 * n * n * n, "System.water_box");
     double L = (double)n * spacing;
     S(p).has_box = true;
     S(p).box_a = L;
