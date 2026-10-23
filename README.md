@@ -62,7 +62,7 @@ are compiled by OpenMM's embedded Lepton engine; see
 | `sys.barostat` `andersen` `sys.sim("verlet"\|"langevin", ...)` | Monte Carlo NPT barostat, Andersen collision thermostat; Verlet or BAOAB Langevin middle integrator |
 | `sim.minimize` `velocities` `step` `report` `xyz` `save_xyz` `save_pdb` | L-BFGS minimization, Maxwell-Boltzmann seeding, CSV/XYZ/PDB writers |
 | `sim.ke` `pe` `energy` `temperature` `dof` `time` `distance` `angle_val` `box_volume` | thermodynamic observables (temperature over the constrained degrees of freedom) and geometry queries |
-| `sim.mark` `msd` `rdf(path, rmax, bins, frames, stride)` | mean squared displacement since `mark()` (Einstein diffusion), radial distribution function g(r) averaged over frames |
+| `sim.mark` `msd` `rdf(path, rmax, bins, frames, stride)` `rdf_pair(path, "O", "O", ...)` | mean squared displacement since `mark()` (Einstein diffusion), radial distribution function g(r) averaged over frames, per element pair |
 | `md.eval(expr)` `assert_close` `print` `version` | physical constants (`pi`, `e`, `kB`, `one_4pi_eps0`), assertions, output |
 
 Schema and rules: [durable-memory/03-schema-v0.md](durable-memory/03-schema-v0.md).

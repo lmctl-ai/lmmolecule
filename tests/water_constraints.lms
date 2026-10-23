@@ -70,6 +70,10 @@ free.mark().step(1000);
 md.assert_close(free.msd(), (2.25 + 0.25 + 0.0625) * 4.0, 0.000000001);
 let fcc = md.system().fcc(3, 0.54, 39.948).lj(0.996, 0.3405, 0.78).sim("verlet", 0.001, 0.0, 0.0, 1);
 fcc.rdf("build/fcc_rdf.csv", 0.8, 80, 1, 0);
+# Rock salt: each Na has 6 Cl at a/2 = 0.282 nm and 12 Na at a/sqrt(2) = 0.399 nm (checked by test.sh).
+let nacl = md.system().rocksalt(4, 0.564, 22.98977, 35.453, 1.0).coulomb("pme", 0.95).sim("verlet", 0.001, 0.0, 0.0, 1);
+nacl.rdf_pair("build/nacl_rdf_nacl.csv", "Na", "Cl", 0.5, 50, 1, 0);
+nacl.rdf_pair("build/nacl_rdf_nana.csv", "Na", "Na", 0.5, 50, 1, 0);
 end _dsl_
 savedsl(p, out);
 

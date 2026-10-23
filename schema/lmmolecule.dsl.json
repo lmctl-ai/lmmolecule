@@ -449,6 +449,20 @@
             "returns": "Sim"
           }
         ],
+        "rdf_pair": [
+          {
+            "params": [
+              "string",
+              "string",
+              "string",
+              "float",
+              "int",
+              "int",
+              "int"
+            ],
+            "returns": "Sim"
+          }
+        ],
         "ke": [
           {
             "params": [],

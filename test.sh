@@ -83,6 +83,12 @@ ok "$n programs run and pass their own assertions"
 shell12="$(awk '!/^#/ && $1 < 0.45 { r1 = $1 - 0.005; r2 = $1 + 0.005; s += $2 * 108 / (1.62^3) * 4/3 * 3.141592653589793 * (r2^3 - r1^3) } END { printf "%.4f", s }' build/fcc_rdf.csv)"
 [ "$shell12" = "12.0000" ] || fail "fcc g(r) first shell integrates to $shell12 neighbours, expected 12"
 ok "Sim.rdf counts exactly 12 first neighbours in an FCC lattice"
+# Sim.rdf_pair on the 4x4x4 rock-salt lattice (V = 2.256^3 nm^3, 256 ions of each kind): 6 Cl around Na, 12 Na around Na.
+nacl6="$(awk '!/^#/ && $1 < 0.33 { r1 = $1 - 0.005; r2 = $1 + 0.005; s += $2 * 256 / (2.256^3) * 4/3 * 3.141592653589793 * (r2^3 - r1^3) } END { printf "%.4f", s }' build/nacl_rdf_nacl.csv)"
+nana12="$(awk '!/^#/ && $1 < 0.45 { r1 = $1 - 0.005; r2 = $1 + 0.005; s += $2 * 256 / (2.256^3) * 4/3 * 3.141592653589793 * (r2^3 - r1^3) } END { printf "%.4f", s }' build/nacl_rdf_nana.csv)"
+[ "$nacl6" = "6.0000" ] || fail "rock-salt Na-Cl first shell integrates to $nacl6, expected 6"
+[ "$nana12" = "12.0000" ] || fail "rock-salt Na-Na first shell integrates to $nana12, expected 12"
+ok "Sim.rdf_pair counts 6 Na-Cl and 12 Na-Na first neighbours in rock salt"
 
 # Dry-run: validate bytecode and schema without running.
 "$HOST" --dry-run --dsl build/harmonic_bond.dslb >"$WORK/dry.out" || fail "--dry-run failed"
@@ -141,7 +147,8 @@ expect_error msdnomark 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).sim
 expect_error andersen0 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).andersen(0.0, 1.0, 1);' "temperature must be positive"
 expect_error threads0 'md.threads(0);' "1..256"
 expect_error nopdb 'let s = md.system().load_pdb("'"$WORK"'/missing.pdb");' "cannot open"
-ok "errors stop the program with exit 3 and a clear message (29 cases)"
+expect_error rdfsym 'let s = md.system().fcc(2, 0.6, 40.0).sim("verlet", 0.001, 0.0, 0.0, 1); s.rdf_pair("'"$WORK"'/x.csv", "Ar", "Xe", 0.2, 10, 1, 0);' "no particles with symbol 'Xe'"
+ok "errors stop the program with exit 3 and a clear message (30 cases)"
 
 # Memory budget: a runaway allocation loop stops with a run error (exit 3, message on stderr and in
 # the JSON line) instead of exhausting the machine. A small budget everywhere; on Linux also the

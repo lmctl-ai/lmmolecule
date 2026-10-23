@@ -1437,19 +1437,28 @@ void register_host(dslvm::Registry &r, Host &h) {
   });
   // Radial distribution function g(r) of a periodic system, averaged over `frames` snapshots taken
   // `stride` steps apart (the current configuration is the first), written as CSV "r g".
-  method(r, "Sim", "rdf", {"string", "float", "int", "int", "int"}, "Sim", [](void *p, Args &a) {
+  // rdf_pair restricts the pairs to two element symbols ("*" matches every particle).
+  auto rdf_impl = [](void *p, const std::string &path, const std::string &sym_a, const std::string &sym_b,
+                     double rmax, int64_t bins, int64_t frames, int64_t stride, const char *who) {
     SimObj &sim = SIM(p);
-    if (a[0].s.empty()) throw dslvm::Error("Sim.rdf: path is empty");
-    if (!sim.spec.has_box) throw dslvm::Error("Sim.rdf: requires a periodic box");
-    double rmax = a[1].f;
-    int64_t bins = a[2].i, frames = a[3].i, stride = a[4].i;
-    if (!(rmax > 0.0) || !std::isfinite(rmax)) throw dslvm::Error("Sim.rdf: rmax must be positive");
-    if (bins < 1 || bins > 100000) throw dslvm::Error("Sim.rdf: bins must be in 1..100000");
-    if (frames < 1 || frames > 1000000) throw dslvm::Error("Sim.rdf: frames must be in 1..1000000");
-    if (stride < 0 || stride > 10000000) throw dslvm::Error("Sim.rdf: stride must be in 0..10000000");
+    if (path.empty()) throw dslvm::Error(std::string(who) + ": path is empty");
+    if (!sim.spec.has_box) throw dslvm::Error(std::string(who) + ": requires a periodic box");
+    if (!(rmax > 0.0) || !std::isfinite(rmax)) throw dslvm::Error(std::string(who) + ": rmax must be positive");
+    if (bins < 1 || bins > 100000) throw dslvm::Error(std::string(who) + ": bins must be in 1..100000");
+    if (frames < 1 || frames > 1000000) throw dslvm::Error(std::string(who) + ": frames must be in 1..1000000");
+    if (stride < 0 || stride > 10000000) throw dslvm::Error(std::string(who) + ": stride must be in 0..10000000");
     size_t n = sim.spec.particles.size();
-    if (n < 2) throw dslvm::Error("Sim.rdf: needs at least two particles");
-    if (n > 20000) throw dslvm::Error("Sim.rdf: at most 20000 particles (pair loop)");
+    if (n > 20000) throw dslvm::Error(std::string(who) + ": at most 20000 particles (pair loop)");
+    std::vector<size_t> set_a, set_b;
+    for (size_t i = 0; i < n; i++) {
+      const std::string &s = sim.spec.particles[i].symbol;
+      if (sym_a == "*" || s == sym_a) set_a.push_back(i);
+      if (sym_b == "*" || s == sym_b) set_b.push_back(i);
+    }
+    bool same = sym_a == sym_b;
+    if (set_a.empty() || set_b.empty())
+      throw dslvm::Error(std::string(who) + ": no particles with symbol '" + (set_a.empty() ? sym_a : sym_b) + "'");
+    if (same && set_a.size() < 2) throw dslvm::Error(std::string(who) + ": needs at least two particles");
     std::vector<double> hist((size_t)bins, 0.0);
     double vol_sum = 0.0;
     for (int64_t f = 0; f < frames; f++) {
@@ -1459,12 +1468,15 @@ void register_host(dslvm::Registry &r, Host &h) {
       st.getPeriodicBoxVectors(ba, bb, bc);
       double L[3] = {ba[0], bb[1], bc[2]};
       if (rmax >= 0.5 * std::min({L[0], L[1], L[2]}))
-        throw dslvm::Error("Sim.rdf: rmax (" + fmt(rmax) + ") must be less than half the box size (" +
+        throw dslvm::Error(std::string(who) + ": rmax (" + fmt(rmax) + ") must be less than half the box size (" +
                            fmt(0.5 * std::min({L[0], L[1], L[2]})) + ")");
       vol_sum += L[0] * L[1] * L[2];
       const auto &pos = st.getPositions();
-      for (size_t i = 0; i < n; i++) {
-        for (size_t j = i + 1; j < n; j++) {
+      for (size_t ia = 0; ia < set_a.size(); ia++) {
+        size_t i = set_a[ia];
+        for (size_t ib = same ? ia + 1 : 0; ib < set_b.size(); ib++) {
+          size_t j = set_b[ib];
+          if (i == j) continue;
           double d2 = 0.0;
           for (int k = 0; k < 3; k++) {
             double d = pos[j][k] - pos[i][k];
@@ -1476,21 +1488,32 @@ void register_host(dslvm::Registry &r, Host &h) {
         }
       }
     }
-    std::ofstream out(a[0].s);
-    if (!out) throw dslvm::Error("Sim.rdf: cannot open " + a[0].s);
-    out << "# r_nm g_r (" << frames << " frames, " << n << " particles)\n";
-    double rho = (double)n / (vol_sum / (double)frames);
+    std::ofstream out(path);
+    if (!out) throw dslvm::Error(std::string(who) + ": cannot open " + path);
+    out << "# r_nm g_r (" << frames << " frames, " << set_a.size() << " " << sym_a << " x " << set_b.size() << " "
+        << sym_b << ")\n";
+    double vol = vol_sum / (double)frames;
+    // Ideal-gas pair count per shell: N_a N_b / V (each unordered pair once when both sets coincide).
+    double pair_density = same ? 0.5 * (double)set_a.size() * (double)set_a.size() / vol
+                               : (double)set_a.size() * (double)set_b.size() / vol;
     double dr = rmax / (double)bins;
     for (int64_t b = 0; b < bins; b++) {
       double r1 = (double)b * dr, r2 = r1 + dr;
       double shell = 4.0 / 3.0 * kPi * (r2 * r2 * r2 - r1 * r1 * r1);
-      double ideal = 0.5 * (double)n * rho * shell * (double)frames;
+      double ideal = pair_density * shell * (double)frames;
       out << fmt(0.5 * (r1 + r2)) << " " << fmt(hist[(size_t)b] / ideal) << "\n";
     }
     out.flush();
-    if (!out) throw dslvm::Error("Sim.rdf: failed writing to " + a[0].s);
+    if (!out) throw dslvm::Error(std::string(who) + ": failed writing to " + path);
     return Value::object("Sim", p);
+  };
+  method(r, "Sim", "rdf", {"string", "float", "int", "int", "int"}, "Sim", [rdf_impl](void *p, Args &a) {
+    return rdf_impl(p, a[0].s, "*", "*", a[1].f, a[2].i, a[3].i, a[4].i, "Sim.rdf");
   });
+  method(r, "Sim", "rdf_pair", {"string", "string", "string", "float", "int", "int", "int"}, "Sim",
+         [rdf_impl](void *p, Args &a) {
+           return rdf_impl(p, a[0].s, trim_str(a[1].s), trim_str(a[2].s), a[3].f, a[4].i, a[5].i, a[6].i, "Sim.rdf_pair");
+         });
   method(r, "Sim", "ke", {}, "float", [](void *p, Args &) {
     return Value::real(SIM(p).energy_state("Sim.ke").getKineticEnergy());
   });
