@@ -69,11 +69,9 @@ target_compile_definitions(openmm PUBLIC
   PTW32_STATIC_LIB
   PTHREAD_BUILDING_STATIC_LIBRARY
   IEEE_8087
-  _USE_MATH_DEFINES
-  NOMINMAX
 )
 if(WIN32)
-  target_compile_definitions(openmm PUBLIC WIN32)
+  target_compile_definitions(openmm PUBLIC WIN32 _copysign=std::copysign)
 endif()
 
 # Disable dynamic plugin dlopen/dlsym in static builds.
