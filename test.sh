@@ -34,7 +34,7 @@ ok "build"
 want_version="lmmolecule $(sed -n 's/^project(lmmolecule VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
 [ "$("$HOST" --version)" = "$want_version" ] || fail "--version is not exactly '$want_version'"
 ok "--version prints exactly '$want_version'"
-python3 scripts/gen-schema.py >/dev/null && git diff --quiet -- schema/lmmolecule.dsl.json 2>/dev/null || [ ! -d .git ] || fail "schema/lmmolecule.dsl.json is stale: run scripts/gen-schema.py"
+python3 scripts/gen-schema.py >/dev/null && git diff --quiet -- schema/lmmolecule.dsl.json 2>/dev/null || [ ! -e .git ] || fail "schema/lmmolecule.dsl.json is stale: run scripts/gen-schema.py"
 ok "schema matches the registrations in cpp/main.cpp"
 python3 scripts/check-visuals.py || fail "visual assets"
 if { command -v lmplot >/dev/null 2>&1 && command -v lmcad >/dev/null 2>&1; } || [ "${LMMOLECULE_TEST_NETWORK:-}" = 1 ]; then
