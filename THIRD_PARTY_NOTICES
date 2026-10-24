@@ -5,7 +5,7 @@ On Linux this executable is linked dynamically against the system glibc (LGPL-2.
 requires glibc >= 2.35, e.g. Ubuntu 22.04 or newer). Everything else is static.
 This executable statically links the following third-party software components
 from OpenMM 8.2.0 (commit 53770948682c40bd460b39830d4e0f0fd3a4b868,
-https://github.com/openmm/openmm) and cpp-dsl-sdk:
+https://github.com/openmm/openmm) and lmcode-cpp:
 only the MIT/BSD/zlib/permissive OpenMM API, Reference Platform, CPU Platform,
 and their permissive bundled support libraries are compiled; the LGPL CUDA,
 OpenCL, and CPU-PME plugin libraries are excluded and not compiled or linked.
@@ -237,9 +237,9 @@ REPRESENTATION OR WARRANTY OF ANY KIND CONCERNING THE MERCHANTABILITY
 OF THIS SOFTWARE OR ITS FITNESS FOR ANY PARTICULAR PURPOSE.
 
 ================================================================================
-9. Quern, JAMA/TNT, and cpp-dsl-sdk
+9. Quern, JAMA/TNT, and lmcode-cpp
 ================================================================================
 
 - Quern sparse QR library by Robert Bridson: Public Domain.
 - JAMA/TNT matrix templates by NIST: Public Domain.
-- cpp-dsl-sdk (cpp/dslvm.hpp): Copyright (c) 2026 Lattice Systems LLC, MIT License.
+- lmcode-cpp (cpp/dslvm.hpp): Copyright (c) 2026 Lattice Systems LLC, MIT License.

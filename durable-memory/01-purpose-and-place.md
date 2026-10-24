@@ -14,7 +14,7 @@ bytecode through an embedded schema.
   `libraries/hilbert`, `libraries/vecmath`, `libraries/irrxml`, `libraries/quern`,
   `libraries/jama`, `serialization`). Pinned in `deps.lock` and fetched into git-ignored
   `third_party/openmm` by `scripts/sync-deps.sh`; nothing of OpenMM is committed.
-- **cpp-dsl-sdk** (`cpp/dslvm.hpp`, bytecode v5) is vendored and pinned by `sdk.lock`.
+- **lmcode-cpp** (`cpp/dslvm.hpp`, bytecode v5) is vendored and pinned by `sdk.lock`.
 - **lmscript** binds programs to the binary with
   `_dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";` so `lmscript prog.lms`
   is all a user runs; the schema is read from the binary (`lmmolecule --dsl-schema --json`).
