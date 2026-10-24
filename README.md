@@ -20,7 +20,8 @@ Molecular dynamics with OpenMM, scripted in lmscript: worked problems with known
 
 Every picture is produced by the example it links to; the `lmctl autorun` line runs it from any empty
 directory and writes the image under `docs/images/` there. The long-form gallery with one picture per
-section is [docs/gallery.md](docs/gallery.md).
+section is [docs/gallery.md](docs/gallery.md). The Linux binary needs glibc >= 2.35 (Ubuntu 22.04 or
+newer); everything else it uses is linked in statically.
 
 ### Liquids, crystals and phase behaviour
 
@@ -187,7 +188,8 @@ cmake -S . -B build && cmake --build build
 ./test.sh                       # needs lmscript on PATH
 ```
 
-Linux builds are fully static; macOS links only system libraries; Windows links the MinGW runtime
+Linux builds link every dependency statically and only the system glibc dynamically (glibc >= 2.35,
+i.e. Ubuntu 22.04 or newer); macOS links only system libraries; Windows links the MinGW runtime
 statically. `lmmolecule --notices` prints the license texts of everything inside.
 
 ## Resource limits

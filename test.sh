@@ -54,7 +54,22 @@ ok "host registry matches compiler signatures"
 ok "--notices prints the third-party license texts"
 
 case "$UNAME_S" in
-  Linux) if ldd "$HOST" >/dev/null 2>&1; then fail "executable is dynamically linked"; fi; ok "executable is fully static (no dynamic loader)";;
+  Linux)
+    if command -v readelf >/dev/null 2>&1; then
+      needed="$(readelf -d "$HOST" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p')"
+    else
+      needed="$(ldd "$HOST" | sed -n 's/^[[:space:]]*\([^[:space:]]*\) =>.*/\1/p')"
+    fi
+    bad=""
+    for lib in $needed; do
+      case "$lib" in
+        libc.so.6|libm.so.6|libpthread.so.0|libdl.so.2|librt.so.1|ld-linux*) ;;
+        *) bad="$bad $lib";;
+      esac
+    done
+    [ -z "$bad" ] || fail "unexpected dynamic dependencies:$bad"
+    [ -n "$needed" ] || fail "no dynamic dependencies found; glibc must stay dynamic"
+    ok "only the glibc runtime is dynamic (everything else static)";;
   Darwin) bad="$(otool -L "$HOST" | tail -n +2 | grep -v -E '/usr/lib/(libSystem|libc\+\+|libresolv)' || true)"
           [ -z "$bad" ] || fail "non-system dylib dependencies: $bad"; ok "only system libraries linked";;
   MINGW*|MSYS*|CYGWIN*)

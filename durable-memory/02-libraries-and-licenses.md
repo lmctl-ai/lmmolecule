@@ -28,14 +28,16 @@ entirely so zero LGPL/GPL files are compiled or linked.
   Instead, `cmake/OpenMM.cmake` compiles the 180 required C++ sources directly with
   `OPENMM_BUILDING_STATIC_ibrary` and registers the CPU platform statically via
   `extern "C" void registerCpuPlatform()`.
-- `olla/src/Platform.cpp` is compiled with `-D__PNACL__` so it omits `<dlfcn.h>` (`dlopen`),
-  avoiding glibc static-link warnings on Linux.
+- `olla/src/Platform.cpp` is compiled with `-D__PNACL__` so it omits `<dlfcn.h>` (`dlopen`);
+  this dates from the fully static builds and is harmless with the dynamic glibc link.
 - On x86_64, `CpuNonbondedForceAvx.cpp` and `CpuCustomNonbondedForceAvx.cpp` are compiled with
   `-mavx` (fixing an upstream bug in `platforms/cpu/staticTarget/CMakeLists.txt`), while
   `CpuNonbondedForceAvx2.cpp` is compiled without `-mavx2` so `isAvx2Supported()` returns `false`
   and avoids a Windows MinGW inline-asm CPUID issue in `vectorizeAvx2.h`.
 - `libraries/lbfgs/src/lbfgs.cpp` is compiled without `USE_SSE=1` because `arithmetic_sse_double.h`
   pairs `_aligned_malloc` (`_WIN32`) with `free` when `_MSC_VER` is not defined (MinGW).
-- On Linux `-static`, `-Wl,--whole-archive -lpthread -Wl,--no-whole-archive` links all of
+- On Linux only glibc (libc/libm/libpthread/libdl, >= 2.35) is linked dynamically (Rule 14);
+  everything else is static via `-static-libstdc++ -static-libgcc`. With `LMMOLECULE_FULL_STATIC=ON`
+  (not the default), `-static`, `-Wl,--whole-archive -lpthread -Wl,--no-whole-archive` links all of
   `libpthread.a` so `OpenMM::ThreadPool` (`pthread_create` / `pthread_cond_wait`) works safely in a
   fully static binary.

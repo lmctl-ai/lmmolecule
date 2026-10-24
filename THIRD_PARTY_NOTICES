@@ -1,6 +1,8 @@
-lmmolecule 0.2.0 includes the third-party software listed below.
+lmmolecule 0.2.1 includes the third-party software listed below.
 
 lmmolecule is distributed under the MIT License (see LICENSE).
+On Linux this executable is linked dynamically against the system glibc (LGPL-2.1;
+requires glibc >= 2.35, e.g. Ubuntu 22.04 or newer). Everything else is static.
 This executable statically links the following third-party software components
 from OpenMM 8.2.0 (commit 53770948682c40bd460b39830d4e0f0fd3a4b868,
 https://github.com/openmm/openmm) and cpp-dsl-sdk:
