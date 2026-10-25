@@ -227,4 +227,21 @@ set +e; "$HOST" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "usage exit code $code, expected 2"
 ok "usage and load errors use exit codes 2 and 3"
 
+# The published compiler injects std; the host embeds only its own schema bytes.
+"$LMSCRIPT" --dsl-signatures schema/lmmolecule.dsl.json --without-std > "$WORK/std-host-only.sig"
+"$LMSCRIPT" --dsl-signatures cpp/std/lmcode-std.schema.json > "$WORK/std-builtins.sig"
+"$HOST" --dsl-signatures > "$WORK/std-registry.sig"
+python3 - "$WORK" <<'PYSTD'
+import pathlib,sys,json
+w=pathlib.Path(sys.argv[1])
+read=lambda name:set((w/name).read_text().splitlines())
+assert read('std-registry.sig')-read('std-builtins.sig') == read('std-host-only.sig'), 'host-only registry drift'
+schema=str(pathlib.Path('schema/lmmolecule.dsl.json').resolve()).replace('\\','/')
+out=str(w/'std-probe.dslb').replace('\\','/')
+(w/'std-probe.lms').write_text('p = _lmcode_ schema='+json.dumps(schema)+';\nlet values = str_list().add("abc");\nif (str_len(values.at(0)) != 3) { let bad = int_list().at(0); }\nend _lmcode_\nsavedsl(p, '+json.dumps(out)+');\n')
+PYSTD
+"$LMSCRIPT" "$WORK/std-probe.lms" > "$WORK/std-probe.log" 2>&1 || { cat "$WORK/std-probe.log"; fail "implicit std compile"; }
+"$HOST" --dsl "$WORK/std-probe.dslb" > "$WORK/std-run.log" 2>&1 || { cat "$WORK/std-run.log"; fail "implicit std runtime"; }
+ok "host-only signatures and implicit std runtime"
+
 echo "all $pass checks passed"
