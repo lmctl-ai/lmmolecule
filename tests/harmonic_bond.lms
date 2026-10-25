@@ -1,7 +1,7 @@
 # Harmonic bond dimer: exact oscillation period T = 2*pi*sqrt(mu/k),
 # quarter/half/full-period phase checks, force verification, and Verlet energy conservation.
 out = ARGV.len() > 0 ? ARGV[0] : "build/harmonic_bond.dslb";
-p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 # Two equal masses m1 = m2 = 2.0 amu -> reduced mass mu = m1*m2/(m1+m2) = 1.0 amu.
 # With k = 4*pi^2 = 39.47841760435743 kJ/(mol*nm^2), omega = sqrt(k/mu) = 2*pi rad/ps -> period T = 1.0 ps.
 md.platform("reference");
@@ -49,5 +49,5 @@ md.assert_close(sim.time(), 1.00, 0.000000001);
 md.assert_close(sim.distance(0, 1), r0 + amp, 0.0001);
 let drift = (sim.energy() - e0) / e0;
 md.assert_close(drift, 0.0, 0.00001);
-end _dsl_
+end _lmcode_
 savedsl(p, out);

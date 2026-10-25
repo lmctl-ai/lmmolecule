@@ -6,7 +6,7 @@
 # ball-and-stick from the computed coordinates.
 mkdir("build/stories");
 mkdir("docs/images");
-sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("cpu");
 md.threads(4);
 let n_side = 6;
@@ -36,7 +36,7 @@ for (k in range(0, int(n_mol))) {
   md.print(str(o + 2) + "," + str(sim.x(o + 2) - sx) + "," + str(sim.y(o + 2) - sy) + "," + str(sim.z(o + 2) - sz) + ",0.90,0.92,0.96");
 }
 md.print("pe_per_molecule " + str(pe_mol));
-end _dsl_
+end _lmcode_
 savedsl(sim_prog, "build/stories/water_box-sim.dslb");
 # The CPU simulation and the CAD render both exceed 60 s on slow Intel runners.
 sim_argv = dsl_cli(sim_prog);
@@ -51,7 +51,7 @@ pe_mol = num(split(pe_line, "\n")[0]);
 println("TIP3P potential energy per molecule: " + str(pe_mol) + " kJ/mol");
 box_len = 1.86;
 
-render = _dsl_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+render = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
 scene.background(0.035, 0.055, 0.095);
 scene.ambient(0.35);
 scene.directional_light(-0.6, -1.0, -0.8, 0.85);
@@ -89,7 +89,7 @@ scene.tube_between(L, L, 0.0, L, L, L, 0.006, edge);
 scene.fit_camera(30.0, 1.05);
 scene.render_png("docs/images/water_box_render.png", 900, 560);
 scene.render_ppm("build/stories/water_box.ppm", 420, 420);
-end _dsl_
+end _lmcode_
 savedsl(render, "build/stories/water_box-render.dslb");
 # Intel macOS needs more than the default 60 s for this 648-atom CAD scene.
 render_argv = dsl_cli(render);
@@ -98,7 +98,7 @@ push(render_argv, "build/stories/water_box-render.dslb");
 r = system(render_argv, 300000);
 assert(r.code == 0, "water-box CAD render exit " + str(r.code) + ": " + r.stdout + r.stderr);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("docs/images/water_box.png", 1000, 760);
 plot.cmd("set multiplot layout 2,2 title '216 TIP3P waters, PME, 300 K: structure, temperature, energy' font ',14'");
 plot.cmd("set grid; set key top right font ',9'");
@@ -120,7 +120,7 @@ plot.cmd("set title 'final configuration (lmcad ball-and-stick)'; unset xlabel; 
 plot.cmd("plot 'build/stories/water_box.ppm' binary array=(420,420) skip=15 flipy format='%uchar' using 1:2:3 with rgbimage");
 plot.cmd("unset multiplot");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "build/stories/water_box-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/stories/water_box-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);

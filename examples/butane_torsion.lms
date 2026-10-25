@@ -3,7 +3,7 @@
 mkdir("build/examples");
 mkdir("docs/images");
 out = ARGV.len() > 0 ? ARGV[0] : "build/butane_torsion.dslb";
-p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
 let pi = md.eval("pi");
 let th0 = 109.47 * pi / 180.0;
@@ -43,19 +43,19 @@ md.assert_close(sim.distance(1, 2), 0.154, 0.001);
 md.assert_close(sim.distance(2, 3), 0.154, 0.001);
 md.assert_close(sim.angle_val(0, 1, 2), th0, 0.03);
 md.assert_close(sim.angle_val(1, 2, 3), th0, 0.03);
-end _dsl_
+end _lmcode_
 savedsl(p, out);
 # An explicit bytecode output argument retains compile-only use in test.sh.
 if (ARGV.len() == 0) {
 r = system ${dsl_cli(p)} --dsl ${out};
 assert(r.code == 0, r.stdout + r.stderr);
 
-plot = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plot = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("docs/images/butane_torsion.png", 900, 560);
 plot.cmd("set title 'Butane torsion: energy before and after minimization'; set ylabel 'Potential energy (kJ/mol)'; set xrange [0:3]; set xtics ('before' 1, 'after' 2); set grid; set key off; set boxwidth 0.55; set style fill solid 0.75; set yrange [0:*]");
 plot.cmd("plot 'build/examples/butane_before.csv' using (1):4 with boxes lc rgb '#9467bd', 'build/examples/butane_after.csv' using (2):4 with boxes lc rgb '#2ca02c'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(plot, "build/butane_torsion-plot.dslb");
 r = system ${dsl_cli(plot)} --dsl build/butane_torsion-plot.dslb;
 assert(r.code == 0, r.stdout + r.stderr);

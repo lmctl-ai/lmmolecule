@@ -6,7 +6,7 @@
 mkdir("build/stories");
 mkdir("build/rendered");
 mkdir("docs/images");
-sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
 let r_oh = 0.1012;
 let theta0 = 113.24;
@@ -36,7 +36,7 @@ md.print("energy," + str(pe) + "," + str(sim.angle_val(1, 0, 2) * 180.0 / md.eva
 # Let the molecule relax to show where the forces lead.
 sim.minimize(0.0001, 500);
 md.print("relaxed," + str(sim.angle_val(1, 0, 2) * 180.0 / md.eval("pi")) + "," + str(sim.pe()));
-end _dsl_
+end _lmcode_
 savedsl(sim_prog, "build/stories/water_forces-sim.dslb");
 r = system ${dsl_cli(sim_prog)} --dsl build/stories/water_forces-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
@@ -73,7 +73,7 @@ t_relax = "minimization opens it back to " + f1(angle_relaxed) + " deg";
 lo_x = ofx + 10.0; lo_y = ofy + 5.0;
 l1_x = 0.5 * (h1x + h1fx) + 14.0; l1_y = 0.5 * (h1y + h1fy) + 5.0;
 l2_x = 0.5 * (h2x + h2fx) + 14.0; l2_y = 0.5 * (h2y + h2fy) + 5.0;
-draw = _dsl_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
+draw = _lmcode_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
 scene.canvas(900, 560, "#0b1220");
 scene.text(40.0, 50.0, 26.0, "Restoring forces on a bent water molecule", "#e8eef5").set_attr("font-weight", "700");
 scene.text(40.0, 78.0, 15.0, "forces from lmmolecule (OpenMM harmonic bond + angle terms), drawn to scale by lmdraw", "#9db4c8");
@@ -98,7 +98,7 @@ scene.text(556.0, 200.0, 14.0, "sum of the three forces = 0 (checked to 1e-6)", 
 scene.text(556.0, 228.0, 14.0, ${t_relax}, "#9db4c8");
 scene.text(40.0, 548.0, 13.0, "Hydrogens pushed apart, oxygen pulled toward them: only the angle term acts, both bonds sit at their rest length.", "#7f93a8");
 scene.render_png("build/rendered/water_forces.png", 900, 560, 1);
-end _dsl_
+end _lmcode_
 savedsl(draw, "build/stories/water_forces-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/stories/water_forces-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);

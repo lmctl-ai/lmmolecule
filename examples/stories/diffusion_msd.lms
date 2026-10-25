@@ -5,7 +5,7 @@
 # value for liquid argon near its boiling point is 1.6-2.4e-5 cm^2/s.
 mkdir("build/stories");
 mkdir("docs/images");
-sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("cpu");
 let mass = 39.948;
 let liquid = md.system().fcc(4, 0.5796, mass).lj(0.996, 0.3405, 1.0).sim("langevin", 0.002, 94.4, 2.0, 21);
@@ -13,12 +13,12 @@ liquid.velocities(94.4, 21).step(8000);
 md.assert_close(liquid.temperature(), 94.4, 15.0);
 # Production under NVE: build the same configuration into a Verlet context via PDB.
 liquid.save_pdb("build/stories/argon_liquid.pdb");
-end _dsl_
+end _lmcode_
 savedsl(sim_prog, "build/stories/diffusion_msd-equil.dslb");
 r = system ${dsl_cli(sim_prog)} --dsl build/stories/diffusion_msd-equil.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 
-prod = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+prod = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("cpu");
 let nve = md.system().load_pdb("build/stories/argon_liquid.pdb").lj(0.996, 0.3405, 1.0).sim("verlet", 0.002, 0.0, 0.0, 1);
 nve.velocities(94.4, 22).step(1000);
@@ -28,13 +28,13 @@ for (i in range(0, 101)) {
   md.print(str(0.2 * float(i)) + "," + str(nve.msd()) + "," + str(nve.temperature()));
   nve.step(100);
 }
-end _dsl_
+end _lmcode_
 savedsl(prod, "build/stories/diffusion_msd-prod.dslb");
 r = system ${dsl_cli(prod)} --dsl build/stories/diffusion_msd-prod.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/msd.csv", split(r.stdout, "{\"ok\"")[0]);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.cmd("set datafile separator ','");
 plot.cmd("set fit quiet; set fit logfile '/dev/null'");
 plot.cmd("msd(t) = 6 * D * t + c; D = 0.002; c = 0.0");
@@ -50,7 +50,7 @@ plot.cmd("set label 'Rahman 1964 (864 atoms, same state point): 2.43e-5 cm^2/s' 
 plot.cmd("set label 'experiment near 90 K: 1.6-2.4e-5 cm^2/s' at 8.5, 0.063 tc rgb '#555555' font ',10'");
 plot.cmd("plot 'build/stories/msd.csv' every ::1 using 1:2 with points pt 7 ps 0.7 lc rgb '#1f77b4' title 'MSD of 256 atoms, NVE at 94.4 K, 1.374 g/cm^3', msd(x) with lines lw 2.5 lc rgb '#d62728' title 'linear fit 6 D t + c'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "build/stories/diffusion_msd-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/stories/diffusion_msd-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);

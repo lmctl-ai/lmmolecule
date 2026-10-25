@@ -1,7 +1,7 @@
 # Lennard-Jones dimer: analytical energy/force check, L-BFGS minimization to r_min = 2^(1/6)*sigma
 # and V_min = -epsilon, and 1-2 bond exclusion check.
 out = ARGV.len() > 0 ? ARGV[0] : "build/lj_dimer.dslb";
-p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 let sigma = 0.34;
 let eps = 1.25;
 let r_init = 0.40;
@@ -38,5 +38,5 @@ let sys_excl = md.system()
   .exclude(0, 1);
 let sim_excl = sys_excl.sim("verlet", 0.001, 0.0, 0.0, 1);
 md.assert_close(sim_excl.pe(), 0.0, 0.000000000001);
-end _dsl_
+end _lmcode_
 savedsl(p, out);

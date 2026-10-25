@@ -2,7 +2,7 @@
 # Verifies the textbook NaCl Madelung constant M = 1.7475645946... on both Reference and CPU platforms,
 # plus direct two-charge Coulomb energy F_coulomb * q1 * q2 / r in vacuum.
 out = ARGV.len() > 0 ? ARGV[0] : "build/coulomb_madelung.dslb";
-p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 let coul = md.eval("one_4pi_eps0");
 
 # 1. Two opposite unit charges separated by r = 0.5 nm in vacuum:
@@ -38,5 +38,5 @@ let u_cpu = sim_cpu.pe();
 let madelung_cpu = -u_cpu * d / (256.0 * coul);
 md.assert_close(madelung_cpu, 1.7475645946, 0.00002);
 md.assert_close(madelung_cpu, madelung_ref, 0.00001);
-end _dsl_
+end _lmcode_
 savedsl(p, out);

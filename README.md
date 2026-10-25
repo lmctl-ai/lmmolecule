@@ -94,7 +94,7 @@ use; binaries already on `PATH` take priority. A program of your own looks like 
 
 ```
 # argon-fcc.lms
-p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 let sys = md.system().fcc(3, 0.54, 39.948).lj(0.996, 0.3405, 0.78);
 let sim = sys.sim("langevin", 0.002, 120.0, 5.0, 42);
 sim.minimize(0.001, 200)
@@ -102,7 +102,7 @@ sim.minimize(0.001, 200)
    .report("argon.csv", 50)
    .xyz("argon.xyz", 200)
    .step(800);
-end _dsl_
+end _lmcode_
 savedsl(p, "argon.dslb");
 system ${dsl_cli(p)} --dsl argon.dslb;
 ```

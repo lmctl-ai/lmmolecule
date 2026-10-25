@@ -4,7 +4,7 @@
 # For N particles in an external 3D harmonic well V(r) = 0.5*k*(x^2+y^2+z^2) at temperature T:
 #   <KE> = (3/2) * N * k_B * T  and  <PE> = (3/2) * N * k_B * T.
 out = ARGV.len() > 0 ? ARGV[0] : "build/thermostat_ensembles.dslb";
-p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
 
 # 1. Deterministic seed reproducibility for Langevin dynamics and velocity initialization.
@@ -63,5 +63,5 @@ let npt_sim = npt_sys.sim("langevin", 0.002, 120.0, 2.0, 99);
 md.assert_close(npt_sim.box_volume(), 1.728, 0.000001);
 npt_sim.velocities(120.0, 99).step(50);
 md.assert_close(npt_sim.time(), 0.10, 0.000001);
-end _dsl_
+end _lmcode_
 savedsl(p, out);

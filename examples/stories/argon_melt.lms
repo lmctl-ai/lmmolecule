@@ -7,7 +7,7 @@
 mkdir("build/stories");
 mkdir("build/stories/melt");
 mkdir("docs/images");
-sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("cpu");
 let frames = 24;
 let L = 3.0 * 0.5796;
@@ -31,7 +31,7 @@ for (f in range(0, frames)) {
   }
   md.print("stage," + str(f) + "," + str(temp) + "," + str(s.temperature()) + "," + str(s.pe() / 108.0));
 }
-end _dsl_
+end _lmcode_
 savedsl(sim_prog, "build/stories/argon_melt-sim.dslb");
 r = system ${dsl_cli(sim_prog)} --dsl build/stories/argon_melt-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
@@ -48,7 +48,7 @@ n_frames = len(frame_rows) / n_atoms;
 # One lmcad process per frame: the bytecode always reads current.csv and writes current.png/.ppm.
 # The scene is drawn at 0.2 x the nm coordinates: lmcad tessellates with an absolute tolerance, so
 # smaller shapes mesh and render several times faster at the same picture.
-render = _dsl_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+render = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
 scene.background(0.035, 0.055, 0.095);
 scene.ambient(0.32);
 scene.directional_light(-0.6, -1.0, -0.8, 0.85);
@@ -76,7 +76,7 @@ for (i in range(0, rows.len())) {
 scene.camera(36.0, 3.3 * sc, 2.7 * sc, 3.9 * sc, 0.87 * sc, 0.87 * sc, 0.87 * sc);
 scene.render_png("build/stories/melt/current.png", 480, 300);
 scene.render_ppm("build/stories/melt/current.ppm", 480, 300);
-end _dsl_
+end _lmcode_
 savedsl(render, "build/stories/argon_melt-render.dslb");
 for (f in range(0, n_frames)) {
   rows = "t,x,y,z,r,g,b\n";
@@ -95,7 +95,7 @@ println("wrote docs/images/argon-melt.gif");
 } else { println("Animation skipped: ffmpeg unavailable; still image generated."); }
 
 # Still image: first and last frame side by side with the temperature/energy curve.
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.png("docs/images/argon_melt.png", 900, 560);
 plot.cmd("set multiplot title 'Heating 108 argon atoms at constant volume: 20 K to 158 K' font ',13'");
 plot.cmd("set origin 0, 0.45; set size 0.5, 0.5; unset tics; unset key; set xrange [0:480]; set yrange [0:300]; set title '20 K: FCC lattice' font ',11'");
@@ -108,7 +108,7 @@ plot.cmd("set arrow from 84, -7.5 to 84, -4.5 nohead dt 2 lc rgb '#d62728'; set 
 plot.cmd("plot 'build/stories/melt/stages.csv' every ::1 using 2:4 with linespoints pt 7 ps 0.8 lw 2 lc rgb '#1f77b4' title 'U / N after each 0.4 ps stage'");
 plot.cmd("unset multiplot");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "build/stories/argon_melt-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/stories/argon_melt-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);

@@ -2,7 +2,7 @@
 # Molecular coordinates are computed by OpenMM, passed as CSV, then drawn by lmcad.
 mkdir("build/visuals");
 mkdir("docs/images");
-compute = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+compute = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
 # A stretched Morse dimer exchanges potential and kinetic energy under NVE.
 let sys = md.system().add_particle(2.0, -0.11, 0.0, 0.0).add_particle(2.0, 0.11, 0.0, 0.0)
@@ -15,12 +15,12 @@ for (i in range(0, 48)) {
   sim.step(10);
 }
 md.assert_close((sim.energy()-e0)/e0, 0.0, 0.0001);
-end _dsl_
+end _lmcode_
 savedsl(compute, "build/visuals/morse_motion-compute.dslb");
 r = system ${dsl_cli(compute)} --dsl build/visuals/morse_motion-compute.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/visuals/morse_motion.csv", split(r.stdout, "{\"ok\"")[0]);
-draw = _dsl_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+draw = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
 scene.background(0.035, 0.055, 0.095);
 scene.ambient(0.32);
 scene.supersample(2);
@@ -37,7 +37,7 @@ for (i in range(0, rows.len())) {
   if (i == 0) { scene.render_png("docs/images/morse_motion.png", 900, 560); }
   scene.render_png("build/visuals/morse-frame-" + str(1000+i) + ".png", 480, 300);
 }
-end _dsl_
+end _lmcode_
 savedsl(draw, "build/visuals/morse_motion-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/visuals/morse_motion-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);

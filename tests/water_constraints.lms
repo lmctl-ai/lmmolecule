@@ -6,7 +6,7 @@
 # 5. free-flight MSD = v^2 t^2 exactly, and a perfect FCC lattice has 12 first neighbours in g(r);
 # 6. Andersen thermostat equipartition <KE> = 3/2 N kB T; 7. two CPU threads conserve energy.
 out = ARGV.len() > 0 ? ARGV[0] : "build/water_constraints.dslb";
-p = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
 let kcal = 4.184;
 
@@ -74,7 +74,7 @@ fcc.rdf("build/fcc_rdf.csv", 0.8, 80, 1, 0);
 let nacl = md.system().rocksalt(4, 0.564, 22.98977, 35.453, 1.0).coulomb("pme", 0.95).sim("verlet", 0.001, 0.0, 0.0, 1);
 nacl.rdf_pair("build/nacl_rdf_nacl.csv", "Na", "Cl", 0.5, 50, 1, 0);
 nacl.rdf_pair("build/nacl_rdf_nana.csv", "Na", "Na", 0.5, 50, 1, 0);
-end _dsl_
+end _lmcode_
 savedsl(p, out);
 
 # g(r) check in the outer script: the bin holding a/sqrt(2) = 0.3818 nm integrates to 12 neighbours.

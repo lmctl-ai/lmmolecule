@@ -5,7 +5,7 @@
 # bond with the same curvature keeps T0 at every amplitude.
 mkdir("build/stories");
 mkdir("docs/images");
-sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
 let de = 120.0;
 let a = 12.0;
@@ -58,13 +58,13 @@ for (k in range(0, 9)) {
   md.assert_close(m_t2 - m_t1, exact, 0.01 * exact);
   md.assert_close(h_t2 - h_t1, t0, 0.01 * t0);
 }
-end _dsl_
+end _lmcode_
 savedsl(sim_prog, "build/stories/morse_period-sim.dslb");
 r = system ${dsl_cli(sim_prog)} --dsl build/stories/morse_period-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/morse_period.csv", split(r.stdout, "{\"ok\"")[0]);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.cmd("set datafile separator ','");
 plot.cmd("t0 = 2 * pi / (12.0 * sqrt(2 * 120.0)); exact(f) = t0 / sqrt(1 - f)");
 plot.png("docs/images/morse_period.png", 900, 560);
@@ -75,7 +75,7 @@ plot.cmd("set label 'T(E) = T_0 / sqrt(1 - E/De)' at 0.42, 72 tc rgb '#d62728'")
 plot.cmd("set label 'harmonic: T_0 = 33.8 fs at every amplitude' at 0.3, 38.5 tc rgb '#1f77b4' font ',10'");
 plot.cmd("plot 1000 * exact(x) with lines lw 2 lc rgb '#d62728' title 'exact classical Morse period', 'build/stories/morse_period.csv' every ::1 using 1:(1000 * $2) with points pt 7 ps 1.5 lc rgb '#d62728' title 'measured, Morse bond (Verlet, 0.02 fs step)', '' every ::1 using 1:(1000 * $3) with points pt 5 ps 1.3 lc rgb '#1f77b4' title 'measured, harmonic bond with the same curvature', 1000 * t0 with lines dt 2 lc rgb '#1f77b4' notitle");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "build/stories/morse_period-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/stories/morse_period-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);

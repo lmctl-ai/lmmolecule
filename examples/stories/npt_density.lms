@@ -4,7 +4,7 @@
 # fluctuates around the measured density of liquid argon at 94.4 K, 1.374 g/cm^3 (Rahman 1964).
 mkdir("build/stories");
 mkdir("docs/images");
-sim_prog = _dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("cpu");
 let n = 256;
 let mass = 39.948;
@@ -23,13 +23,13 @@ for (i in range(0, 201)) {
 let final_density = gcc / sim.box_volume();
 md.print("final density " + str(final_density));
 md.assert_close(final_density, 1.374, 0.12);
-end _dsl_
+end _lmcode_
 savedsl(sim_prog, "build/stories/npt_density-sim.dslb");
 r = system ${dsl_cli(sim_prog)} --dsl build/stories/npt_density-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/npt.csv", split(split(r.stdout, "final density")[0], "{\"ok\"")[0]);
 
-draw = _dsl_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
 plot.cmd("set datafile separator ','");
 plot.cmd("stats [20:40] 'build/stories/npt.csv' every ::1 using 1:2 nooutput");
 let mean_density = plot.num("STATS_mean_y");
@@ -44,7 +44,7 @@ plot.cmd("set label 'instantaneous density of 256 atoms: LJ cutoff 1 nm + tail c
 plot.cmd("set label sprintf('mean over 20-40 ps: %.3f g/cm^3', STATS_mean_y) at 1, 1.55 tc rgb '#1f77b4' font ',10'");
 plot.cmd("plot 'build/stories/npt.csv' every ::1 using 1:2 with lines lw 2 lc rgb '#1f77b4' title 'instantaneous density (256 atoms, LJ cutoff 1 nm + tail correction, MC barostat every 25 steps)'");
 plot.close();
-end _dsl_
+end _lmcode_
 savedsl(draw, "build/stories/npt_density-draw.dslb");
 r = system ${dsl_cli(draw)} --dsl build/stories/npt_density-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
