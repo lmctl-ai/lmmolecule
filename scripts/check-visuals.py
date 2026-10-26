@@ -98,7 +98,7 @@ def check_readme_gallery(root: Path, errors: list[str]) -> None:
     if not 3 <= len(images) <= 6:
         errors.append(f"README gallery must contain 3-6 images before the first ## heading (found {len(images)})")
     sources = re.findall(r"\((examples/[^)\s]+\.lms)\)", preamble)
-    autoruns = re.findall(r"lmctl autorun\s+\S+", preamble)
+    autoruns = re.findall(r"lmctl(?:\s+autorun)?\s+\S+\.lms", preamble)
     if len(sources) < len(images):
         errors.append(f"README gallery has {len(images)} images but only {len(sources)} linked example sources")
     if len(autoruns) < len(images):

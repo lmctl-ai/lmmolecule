@@ -2,7 +2,7 @@
 
 Three groups, all self-executing (`savedsl` then `system ${dsl_cli(p)} --dsl ...`), all writing
 images under `docs/images/` of the current directory, all reproducible with
-`lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/<path>.lms`
+`lmctl https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/<path>.lms`
 from an empty directory. Every example asserts its physical result with `md.assert_close`.
 
 - `examples/*.lms` (4): argon_fcc_melt, nacl_madelung (Madelung 1.747567 by PME), butane_torsion,
