@@ -15,7 +15,7 @@ for (i in range(0, sys.count())) {
 }
 end _lmcode_
 savedsl(compute, "build/visuals/argon_structure-compute.dslb");
-r = system ${dsl_cli(compute)} --dsl build/visuals/argon_structure-compute.dslb;
+r = system ${dsl_cli(compute)} --lmcode build/visuals/argon_structure-compute.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/visuals/argon_structure.csv", split(r.stdout, "{\"ok\"")[0]);
 draw = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
@@ -33,7 +33,7 @@ scene.fit_camera(36.0, 1.24);
 scene.render_png("docs/images/argon_structure.png", 900, 560);
 end _lmcode_
 savedsl(draw, "build/visuals/argon_structure-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/visuals/argon_structure-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/visuals/argon_structure-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 
 

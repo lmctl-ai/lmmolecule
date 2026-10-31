@@ -33,7 +33,7 @@ for (f in range(0, frames)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/stories/argon_melt-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/argon_melt-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/argon_melt-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 frame_rows = [];
 stages = "frame temp_bath_K temp_K pe_per_atom\n";
@@ -82,7 +82,7 @@ for (f in range(0, n_frames)) {
   rows = "t,x,y,z,r,g,b\n";
   for (i in range(0, n_atoms)) { rows = rows + frame_rows[f * n_atoms + i] + "\n"; }
   write_file("build/stories/melt/current.csv", rows);
-  r = system ${dsl_cli(render)} --dsl build/stories/argon_melt-render.dslb;
+  r = system ${dsl_cli(render)} --lmcode build/stories/argon_melt-render.dslb;
   assert(r.code == 0, r.stdout + r.stderr);
   copy_file("build/stories/melt/current.png", "build/stories/melt/frame-" + str(1000 + f) + ".png");
   if (f == 0) { copy_file("build/stories/melt/current.ppm", "build/stories/melt/first.ppm"); }
@@ -110,6 +110,6 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/argon_melt-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/argon_melt-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/argon_melt-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/argon_melt.png");

@@ -22,7 +22,7 @@ end _lmcode_
 savedsl(p, out);
 # An explicit bytecode output argument retains compile-only use in test.sh.
 if (ARGV.len() == 0) {
-r = system ${dsl_cli(p)} --dsl ${out};
+r = system ${dsl_cli(p)} --lmcode ${out};
 assert(r.code == 0, r.stdout + r.stderr);
 
 plot = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -32,7 +32,7 @@ plot.cmd("plot 'build/examples/nacl_energy.csv' using (0):(-$4*0.282/(256.0*138.
 plot.close();
 end _lmcode_
 savedsl(plot, "build/nacl_madelung-plot.dslb");
-r = system ${dsl_cli(plot)} --dsl build/nacl_madelung-plot.dslb;
+r = system ${dsl_cli(plot)} --lmcode build/nacl_madelung-plot.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/nacl_madelung.png");
 

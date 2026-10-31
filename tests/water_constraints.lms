@@ -79,7 +79,7 @@ savedsl(p, out);
 
 # g(r) check in the outer script: the bin holding a/sqrt(2) = 0.3818 nm integrates to 12 neighbours.
 if (ARGV.len() == 0) {
-r = system ${dsl_cli(p)} --dsl ${out};
+r = system ${dsl_cli(p)} --lmcode ${out};
 assert(r.code == 0, r.stdout + r.stderr);
 rows = read_lines("build/fcc_rdf.csv");
 rho = 108.0 / (1.62 * 1.62 * 1.62);

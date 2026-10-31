@@ -6,8 +6,8 @@ expression compiler, PocketFFT 3D Particle Mesh Ewald, SFMT random number genera
 local energy minimizer) statically linked into one executable, driven from lmscript `_dsl_`
 bytecode through an embedded schema.
 
-- **Scripting only.** There is no user-facing command line beyond `--dsl`, `--dry-run`,
-  `--version`, `--notices`, `--dsl-schema [--json]` and `--dsl-signatures` (the conventions
+- **Scripting only.** There is no user-facing command line beyond `--lmcode`, `--dry-run`,
+  `--version`, `--notices`, `--lmcode-schema [--json]` and `--lmcode-signatures` (the conventions
   of the sibling hosts).
 - **Libraries**: OpenMM 8.2.0 (`openmmapi`, `olla`, `platforms/reference`, `platforms/cpu`,
   `libraries/lepton`, `libraries/pocketfft`, `libraries/sfmt`, `libraries/lbfgs`,
@@ -17,7 +17,7 @@ bytecode through an embedded schema.
 - **lmcode-cpp** (`cpp/dslvm.hpp`, bytecode v5) is vendored and pinned by `sdk.lock`.
 - **lmscript** binds programs to the binary with
   `_dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";` so `lmscript prog.lms`
-  is all a user runs; the schema is read from the binary (`lmmolecule --dsl-schema --json`).
+  is all a user runs; the schema is read from the binary (`lmmolecule --lmcode-schema --json`).
 
 ## Scope boundary
 

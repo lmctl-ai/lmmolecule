@@ -38,7 +38,7 @@ sim.minimize(0.0001, 500);
 md.print("relaxed," + str(sim.angle_val(1, 0, 2) * 180.0 / md.eval("pi")) + "," + str(sim.pe()));
 end _lmcode_
 savedsl(sim_prog, "build/stories/water_forces-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/water_forces-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/water_forces-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 
 ax = []; ay = []; fx = []; fy = [];
@@ -100,7 +100,7 @@ scene.text(40.0, 548.0, 13.0, "Hydrogens pushed apart, oxygen pulled toward them
 scene.render_png("build/rendered/water_forces.png", 900, 560, 1);
 end _lmcode_
 savedsl(draw, "build/stories/water_forces-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/water_forces-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/water_forces-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 copy_file("build/rendered/water_forces.png", "docs/images/water_forces.png");
 println("wrote docs/images/water_forces.png");

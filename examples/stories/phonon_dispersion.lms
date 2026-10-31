@@ -54,7 +54,7 @@ for (j in range(1, 17)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/stories/phonon_dispersion-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/phonon_dispersion-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/phonon_dispersion-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/phonons.csv", split(r.stdout, "{\"ok\"")[0]);
 
@@ -71,6 +71,6 @@ plot.cmd("plot w(x) with lines lw 2 lc rgb '#d62728' title 'omega(k) = 2 sqrt(K/
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/phonon_dispersion-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/phonon_dispersion-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/phonon_dispersion-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/phonon_dispersion.png");

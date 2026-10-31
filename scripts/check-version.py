@@ -28,7 +28,7 @@ if ref.startswith("refs/tags/v") and ref != "refs/tags/v" + version:
 host = str(Path(sys.argv[1]).resolve())
 for args, expected in [(["--version"], name + " " + version + "\n"),
                        (["--notices"], notices),
-                       (["--dsl-schema", "--json"], (root / "schema" / (name + ".dsl.json")).read_text(encoding="utf-8"))]:
+                       (["--lmcode-schema", "--json"], (root / "schema" / (name + ".dsl.json")).read_text(encoding="utf-8"))]:
     actual = subprocess.run([host] + args, check=True, capture_output=True, text=True, timeout=30).stdout
     if actual != expected:
         sys.exit("candidate " + " ".join(args) + " differs from package metadata")

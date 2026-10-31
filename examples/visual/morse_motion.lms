@@ -17,7 +17,7 @@ for (i in range(0, 48)) {
 md.assert_close((sim.energy()-e0)/e0, 0.0, 0.0001);
 end _lmcode_
 savedsl(compute, "build/visuals/morse_motion-compute.dslb");
-r = system ${dsl_cli(compute)} --dsl build/visuals/morse_motion-compute.dslb;
+r = system ${dsl_cli(compute)} --lmcode build/visuals/morse_motion-compute.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/visuals/morse_motion.csv", split(r.stdout, "{\"ok\"")[0]);
 draw = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
@@ -39,7 +39,7 @@ for (i in range(0, rows.len())) {
 }
 end _lmcode_
 savedsl(draw, "build/visuals/morse_motion-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/visuals/morse_motion-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/visuals/morse_motion-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 # A palette made from all frames avoids flicker. ffmpeg is a standalone tool, not linked.
 if (which("ffmpeg") != null) {

@@ -104,7 +104,7 @@ sim.minimize(0.001, 200)
    .step(800);
 end _lmcode_
 savedsl(p, "argon.dslb");
-system ${dsl_cli(p)} --dsl argon.dslb;
+system ${dsl_cli(p)} --lmcode argon.dslb;
 ```
 
 `lmscript argon-fcc.lms` compiles the program against the schema built into the binary and runs it.

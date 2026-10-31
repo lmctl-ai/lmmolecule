@@ -25,7 +25,7 @@ md.print("final density " + str(final_density));
 md.assert_close(final_density, 1.374, 0.12);
 end _lmcode_
 savedsl(sim_prog, "build/stories/npt_density-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/npt_density-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/npt_density-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/npt.csv", split(split(r.stdout, "final density")[0], "{\"ok\"")[0]);
 
@@ -46,7 +46,7 @@ plot.cmd("plot 'build/stories/npt.csv' every ::1 using 1:2 with lines lw 2 lc rg
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/npt_density-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/npt_density-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/npt_density-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println(split(r.stdout, "{\"ok\"")[0]);
 println("wrote docs/images/npt_density.png");

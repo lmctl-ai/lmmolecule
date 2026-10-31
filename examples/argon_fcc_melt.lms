@@ -28,7 +28,7 @@ end _lmcode_
 savedsl(p, out);
 # An explicit bytecode output argument retains compile-only use in test.sh.
 if (ARGV.len() == 0) {
-r = system ${dsl_cli(p)} --dsl ${out};
+r = system ${dsl_cli(p)} --lmcode ${out};
 assert(r.code == 0, r.stdout + r.stderr);
 
 plot = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -38,7 +38,7 @@ plot.cmd("plot 'build/examples/argon_fcc.csv' using 2:6 with linespoints lw 2 pt
 plot.close();
 end _lmcode_
 savedsl(plot, "build/argon_fcc_melt-plot.dslb");
-r = system ${dsl_cli(plot)} --dsl build/argon_fcc_melt-plot.dslb;
+r = system ${dsl_cli(plot)} --lmcode build/argon_fcc_melt-plot.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/argon_fcc_melt.png");
 

@@ -27,7 +27,7 @@ gas.rdf("build/stories/rdf_gas.csv", 2.5, 100, 20, 100);
 md.print("solid T " + str(solid.temperature()) + " liquid T " + str(liquid.temperature()) + " gas T " + str(gas.temperature()));
 end _lmcode_
 savedsl(sim_prog, "build/stories/argon_rdf_phases-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/argon_rdf_phases-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/argon_rdf_phases-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -44,6 +44,6 @@ plot.cmd("plot 1 with lines dt 3 lc rgb '#999999' notitle, 'build/stories/rdf_so
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/argon_rdf_phases-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/argon_rdf_phases-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/argon_rdf_phases-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/argon_rdf_phases.png");

@@ -15,7 +15,7 @@ for (i in range(0, 41)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/visuals/lj_binding-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/visuals/lj_binding-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/visuals/lj_binding-sim.dslb;
 assert(r.code == 0);
 write_file("build/visuals/lj_binding.csv", "separation_nm,potential_kj_mol\n" + split(r.stdout, "{\"ok\"")[0]);
 
@@ -28,7 +28,7 @@ plot.cmd("plot 'build/visuals/lj_binding.csv' every ::1 using 1:2 with lines lw 
 plot.close();
 end _lmcode_
 savedsl(draw, "build/visuals/lj_binding-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/visuals/lj_binding-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/visuals/lj_binding-draw.dslb;
 assert(r.code == 0);
 
 println("wrote docs/images/lj_binding.png");

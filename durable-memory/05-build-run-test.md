@@ -40,3 +40,7 @@ Measured 2026-10-23, x86_64 Linux, GCC 11.4, Ninja.
      78.3 and 1.0, free-flight MSD $= v^2 t^2$, FCC $g(r)$ first shell = 12, rock-salt `rdf_pair` 6 Na-Cl and 12 Na-Na neighbours.
   7. `thermostats_threads.lms`: Andersen thermostat equipartition within 8 %, two CPU threads
      keep the harmonic NVE drift below $10^{-8}$.
+
+## Native host flag contract
+
+The host accepts only the lmcode option family, with no retired aliases. The full gate checks exact schema/signature output, new loader routing and rejection before file effects in scratch HOME. SDK20325f7 is synchronized through the owner script for actual source-compiler v6 capabilities; package metadata alone is insufficient. Internal DSLB and .dslb names remain.

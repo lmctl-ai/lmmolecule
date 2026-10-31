@@ -15,7 +15,7 @@ for (i in range(0, 101)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/visuals/thermal_trap-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/visuals/thermal_trap-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/visuals/thermal_trap-sim.dslb;
 assert(r.code == 0);
 write_file("build/visuals/thermal_trap.csv", "time_ps,kinetic_kj_mol,potential_kj_mol,temperature_k\n" + split(r.stdout, "{\"ok\"")[0]);
 
@@ -27,7 +27,7 @@ plot.cmd("plot 'build/visuals/thermal_trap.csv' every ::1 using 1:2 with lines l
 plot.close();
 end _lmcode_
 savedsl(draw, "build/visuals/thermal_trap-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/visuals/thermal_trap-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/visuals/thermal_trap-draw.dslb;
 assert(r.code == 0);
 
 println("wrote docs/images/thermal_trap.png");

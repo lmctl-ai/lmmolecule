@@ -17,7 +17,7 @@ for (i in range(0, 31)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/visuals/water_bend-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/visuals/water_bend-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/visuals/water_bend-sim.dslb;
 assert(r.code == 0);
 write_file("build/visuals/water_bend.csv", "angle_deg,bend_energy_kj_mol\n" + split(r.stdout, "{\"ok\"")[0]);
 
@@ -29,7 +29,7 @@ plot.cmd("plot 'build/visuals/water_bend.csv' every ::1 using 1:2 with lines lw 
 plot.close();
 end _lmcode_
 savedsl(draw, "build/visuals/water_bend-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/visuals/water_bend-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/visuals/water_bend-draw.dslb;
 assert(r.code == 0);
 
 println("wrote docs/images/water_bend.png");

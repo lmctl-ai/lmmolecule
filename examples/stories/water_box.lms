@@ -40,7 +40,7 @@ end _lmcode_
 savedsl(sim_prog, "build/stories/water_box-sim.dslb");
 # The CPU simulation and the CAD render both exceed 60 s on slow Intel runners.
 sim_argv = dsl_cli(sim_prog);
-push(sim_argv, "--dsl");
+push(sim_argv, "--lmcode");
 push(sim_argv, "build/stories/water_box-sim.dslb");
 r = system(sim_argv, 300000);
 assert(r.code == 0, "water-box simulation exit " + str(r.code) + ": " + r.stdout + r.stderr);
@@ -93,7 +93,7 @@ end _lmcode_
 savedsl(render, "build/stories/water_box-render.dslb");
 # Intel macOS needs more than the default 60 s for this 648-atom CAD scene.
 render_argv = dsl_cli(render);
-push(render_argv, "--dsl");
+push(render_argv, "--lmcode");
 push(render_argv, "build/stories/water_box-render.dslb");
 r = system(render_argv, 300000);
 assert(r.code == 0, "water-box CAD render exit " + str(r.code) + ": " + r.stdout + r.stderr);
@@ -122,6 +122,6 @@ plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/water_box-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/water_box-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/water_box-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/water_box.png and docs/images/water_box_render.png");

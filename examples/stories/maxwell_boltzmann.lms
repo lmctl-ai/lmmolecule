@@ -22,7 +22,7 @@ for (snap in range(0, 6)) {
 md.assert_close(gas.temperature(), temp, 30.0);
 end _lmcode_
 savedsl(sim_prog, "build/stories/maxwell_boltzmann-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/maxwell_boltzmann-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/maxwell_boltzmann-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/speeds.csv", split(r.stdout, "{\"ok\"")[0]);
 
@@ -44,6 +44,6 @@ plot.cmd("plot 'build/stories/speeds.csv' using (bin($1)):(1.0 / (n * w)) smooth
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/maxwell_boltzmann-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/maxwell_boltzmann-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/maxwell_boltzmann-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/maxwell_boltzmann.png");

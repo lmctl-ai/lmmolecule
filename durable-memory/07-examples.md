@@ -1,6 +1,6 @@
 # Examples
 
-Three groups, all self-executing (`savedsl` then `system ${dsl_cli(p)} --dsl ...`), all writing
+Three groups, all self-executing (`savedsl` then `system ${dsl_cli(p)} --lmcode ...`), all writing
 images under `docs/images/` of the current directory, all reproducible with
 `lmctl https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/<path>.lms`
 from an empty directory. Every example asserts its physical result with `md.assert_close`.

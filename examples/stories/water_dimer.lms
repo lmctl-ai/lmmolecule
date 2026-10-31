@@ -48,7 +48,7 @@ for (k in range(0, 37)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/stories/water_dimer-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/water_dimer-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/water_dimer-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 
 # Parse the host output: six atom records, one summary, 37 scan points.
@@ -151,7 +151,7 @@ scene.text(40.0, 530.0, 13.0, "red: oxygen, white: hydrogen, dashed: hydrogen bo
 scene.render_png("build/rendered/water_dimer_geometry.png", 900, 560, 1);
 end _lmcode_
 savedsl(draw, "build/stories/water_dimer-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/water_dimer-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/water_dimer-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 copy_file("build/rendered/water_dimer_geometry.png", "docs/images/water_dimer_geometry.png");
 
@@ -167,6 +167,6 @@ plot.cmd("plot 'build/stories/water_dimer_scan.csv' using 1:2 with linespoints p
 plot.close();
 end _lmcode_
 savedsl(plotp, "build/stories/water_dimer-plot.dslb");
-r = system ${dsl_cli(plotp)} --dsl build/stories/water_dimer-plot.dslb;
+r = system ${dsl_cli(plotp)} --lmcode build/stories/water_dimer-plot.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/water_dimer.png and docs/images/water_dimer_geometry.png");

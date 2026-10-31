@@ -15,7 +15,7 @@ md.assert_close(liquid.temperature(), 94.4, 15.0);
 liquid.save_pdb("build/stories/argon_liquid.pdb");
 end _lmcode_
 savedsl(sim_prog, "build/stories/diffusion_msd-equil.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/diffusion_msd-equil.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/diffusion_msd-equil.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 
 prod = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
@@ -30,7 +30,7 @@ for (i in range(0, 101)) {
 }
 end _lmcode_
 savedsl(prod, "build/stories/diffusion_msd-prod.dslb");
-r = system ${dsl_cli(prod)} --dsl build/stories/diffusion_msd-prod.dslb;
+r = system ${dsl_cli(prod)} --lmcode build/stories/diffusion_msd-prod.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/msd.csv", split(r.stdout, "{\"ok\"")[0]);
 
@@ -52,7 +52,7 @@ plot.cmd("plot 'build/stories/msd.csv' every ::1 using 1:2 with points pt 7 ps 0
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/diffusion_msd-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/diffusion_msd-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/diffusion_msd-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 parts = split(r.stdout, "D = ");
 tail = split(parts[1], " ");

@@ -43,7 +43,7 @@ for (state in range(0, 2)) {
 md.assert_close(sim.distance(0, 1), 0.154, 0.001);
 end _lmcode_
 savedsl(compute, "build/visuals/butane_relaxation-compute.dslb");
-r = system ${dsl_cli(compute)} --dsl build/visuals/butane_relaxation-compute.dslb;
+r = system ${dsl_cli(compute)} --lmcode build/visuals/butane_relaxation-compute.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/visuals/butane_relaxation.csv", split(r.stdout, "{\"ok\"")[0]);
 draw = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
@@ -70,7 +70,7 @@ scene.camera(35.0, 0.4, 0.55, 1.8, 0.4, 0.04, 0.0);
 scene.render_png("docs/images/butane_relaxation.png", 900, 560);
 end _lmcode_
 savedsl(draw, "build/visuals/butane_relaxation-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/visuals/butane_relaxation-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/visuals/butane_relaxation-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 
 

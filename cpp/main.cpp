@@ -1,6 +1,6 @@
 // lmmolecule: OpenMM 8 (Core API, Reference and CPU platforms, Lepton, PocketFFT, L-BFGS)
 // behind an lmscript `_dsl_` schema. Scripting only: the executable has no user-facing CLI
-// besides --dsl and the standard schema/version/notices queries.
+// besides --lmcode and the standard schema/version/notices queries.
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -1613,7 +1613,7 @@ void register_host(dslvm::Registry &r, Host &h) {
 }
 
 const char *usage =
-    "usage: lmmolecule --version | --notices | --dsl-schema [--json] | --dsl-signatures | [--dry-run] --dsl FILE [FILE ...]\n"
+    "usage: lmmolecule --version | --notices | --lmcode-schema [--json] | --lmcode-signatures | [--dry-run] --lmcode FILE [FILE ...]\n"
     "environment: LMMOLECULE_MAX_MEMORY_MB  total memory budget in MiB (default 4096); a program that needs more\n"
     "             stops with a run error (exit 3) instead of allocating\n";
 
@@ -1658,7 +1658,7 @@ int main(int argc, char **argv) {
                     (std::streamsize)lmmolecule::embedded_notices_size);
     return std::cout ? 0 : 4;
   }
-  if (argc >= 2 && a1 == "--dsl-schema") {
+  if (argc >= 2 && a1 == "--lmcode-schema") {
     if (argc == 2) {
       for (const auto &s : reg.signatures()) std::cout << s << "\n";
       return std::cout ? 0 : 4;
@@ -1671,7 +1671,7 @@ int main(int argc, char **argv) {
     std::cerr << usage;
     return 2;
   }
-  if (argc == 2 && a1 == "--dsl-signatures") {
+  if (argc == 2 && a1 == "--lmcode-signatures") {
     for (const auto &s : reg.signatures()) std::cout << s << "\n";
     return 0;
   }
@@ -1682,7 +1682,7 @@ int main(int argc, char **argv) {
     dry = true;
     ++dsl_arg;
   }
-  if (argc <= dsl_arg || std::string(argv[dsl_arg]) != "--dsl") {
+  if (argc <= dsl_arg || std::string(argv[dsl_arg]) != "--lmcode") {
     std::cerr << usage;
     return 2;
   }

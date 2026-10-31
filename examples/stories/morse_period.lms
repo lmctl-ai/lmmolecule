@@ -60,7 +60,7 @@ for (k in range(0, 9)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/stories/morse_period-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/morse_period-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/morse_period-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/morse_period.csv", split(r.stdout, "{\"ok\"")[0]);
 
@@ -77,6 +77,6 @@ plot.cmd("plot 1000 * exact(x) with lines lw 2 lc rgb '#d62728' title 'exact cla
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/morse_period-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/morse_period-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/morse_period-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/morse_period.png");

@@ -30,6 +30,7 @@ command -v ninja >/dev/null 2>&1 && GEN="-G Ninja"
 cmake -S . -B "$BUILD_DIR" $GEN -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build "$BUILD_DIR" >"$WORK/build.log" 2>&1 || { tail -40 "$WORK/build.log" >&2; fail "build"; }
 ok "build"
+python3 tests/check-host-flags.py schema/lmmolecule.dsl.json "$HOST" || fail "hard host flag cutover"
 
 python3 scripts/check-version.py "$HOST" || fail "package version agreement"
 ok "VERSION agrees with CMake, schema, notices, binary and release tag"
@@ -44,10 +45,10 @@ if { command -v lmplot >/dev/null 2>&1 && command -v lmcad >/dev/null 2>&1; } ||
 else
   ok "visual examples skipped (lmplot/lmcad unavailable, LMMOLECULE_TEST_NETWORK unset)"
 fi
-"$HOST" --dsl-schema --json >"$WORK/schema.json" || fail "embedded schema print"
+"$HOST" --lmcode-schema --json >"$WORK/schema.json" || fail "embedded schema print"
 cmp -s "$WORK/schema.json" schema/lmmolecule.dsl.json || fail "embedded schema differs from schema/lmmolecule.dsl.json"
-ok "--dsl-schema --json prints byte-identical embedded schema bytes"
-diff -u <("$LMSCRIPT" --dsl-signatures schema/lmmolecule.dsl.json) <("$HOST" --dsl-signatures) || fail "host/compiler signatures differ"
+ok "--lmcode-schema --json prints byte-identical embedded schema bytes"
+diff -u <("$LMSCRIPT" --lmcode-signatures schema/lmmolecule.dsl.json) <("$HOST" --lmcode-signatures) || fail "host/compiler signatures differ"
 ok "host registry matches compiler signatures"
 "$HOST" --notices | grep -q "OpenMM" || fail "--notices missing OpenMM text"
 "$HOST" --notices | grep -q "PocketFFT" || fail "--notices missing PocketFFT text"
@@ -89,10 +90,10 @@ for src in tests/*.lms examples/*.lms; do
   "$LMSCRIPT" "$src" "build/$name.dslb" >"$WORK/$name.log" 2>&1 || { cat "$WORK/$name.log" >&2; fail "$name compile"; }
   n=$((n+1))
 done
-ok "$n programs compile as bytecode v5"
+ok "$n programs compile as bytecode v6"
 for src in tests/*.lms examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$HOST" --dsl "build/$name.dslb" >"$WORK/$name.out" 2>"$WORK/$name.err" || { cat "$WORK/$name.out" "$WORK/$name.err" >&2; fail "$name run"; }
+  "$HOST" --lmcode "build/$name.dslb" >"$WORK/$name.out" 2>"$WORK/$name.err" || { cat "$WORK/$name.out" "$WORK/$name.err" >&2; fail "$name run"; }
   grep -q '"ok": true' "$WORK/$name.out" || { cat "$WORK/$name.out" >&2; fail "$name did not report ok"; }
 done
 ok "$n programs run and pass their own assertions"
@@ -108,7 +109,7 @@ nana12="$(awk '!/^#/ && $1 < 0.45 { r1 = $1 - 0.005; r2 = $1 + 0.005; s += $2 * 
 ok "Sim.rdf_pair counts 6 Na-Cl and 12 Na-Na first neighbours in rock salt"
 
 # Dry-run: validate bytecode and schema without running.
-"$HOST" --dry-run --dsl build/harmonic_bond.dslb >"$WORK/dry.out" || fail "--dry-run failed"
+"$HOST" --dry-run --lmcode build/harmonic_bond.dslb >"$WORK/dry.out" || fail "--dry-run failed"
 grep -q '"ok": true' "$WORK/dry.out" || fail "--dry-run did not report ok"
 ok "--dry-run validates bytecode without executing"
 
@@ -116,7 +117,7 @@ ok "--dry-run validates bytecode without executing"
 for f in build/examples/*.csv build/examples/*.xyz; do echo "$(sha "$f") $f"; done >"$WORK/before.txt"
 for src in examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$HOST" --dsl "build/$name.dslb" >/dev/null 2>&1 || fail "$name rerun"
+  "$HOST" --lmcode "build/$name.dslb" >/dev/null 2>&1 || fail "$name rerun"
 done
 for f in build/examples/*.csv build/examples/*.xyz; do echo "$(sha "$f") $f"; done >"$WORK/after.txt"
 cmp -s "$WORK/before.txt" "$WORK/after.txt" || fail "result files differ on rerun"
@@ -131,7 +132,7 @@ end _dsl_
 savedsl(p, "$WORK/$1.dslb");
 LMS
   "$LMSCRIPT" "$WORK/$1.lms" >/dev/null 2>"$WORK/$1.cerr" || { cat "$WORK/$1.cerr" >&2; fail "$1 compile"; }
-  set +e; out="$("$HOST" --dsl "$WORK/$1.dslb" 2>/dev/null)"; code=$?; set -e
+  set +e; out="$("$HOST" --lmcode "$WORK/$1.dslb" 2>/dev/null)"; code=$?; set -e
   [ "$code" = 3 ] || fail "$1: exit code $code, expected 3 ($out)"
   echo "$out" | grep -q "$3" || fail "$1: message lacks '$3': $out"
 }
@@ -180,7 +181,7 @@ LMS
   "$LMSCRIPT" "$WORK/$1.lms" >/dev/null || fail "$1.lms compile"
 }
 expect_budget() { # name, MiB, what
-  set +e; out="$(LMMOLECULE_MAX_MEMORY_MB=$2 "$HOST" --dsl "$WORK/$1.dslb" 2>"$WORK/$1.err")"; code=$?; set -e
+  set +e; out="$(LMMOLECULE_MAX_MEMORY_MB=$2 "$HOST" --lmcode "$WORK/$1.dslb" 2>"$WORK/$1.err")"; code=$?; set -e
   [ "$code" = 3 ] || fail "$3 under LMMOLECULE_MAX_MEMORY_MB=$2: exit $code, expected 3 ($out)"
   echo "$out" | grep -q "memory budget exceeded" || fail "$3: JSON lacks the budget message: $out"
   grep -q "LMMOLECULE_MAX_MEMORY_MB" "$WORK/$1.err" || fail "$3: no budget message on stderr"
@@ -201,10 +202,10 @@ expect_budget cpunbl 256 "CPU neighbour list"
 # PME grid malloc'd by OpenMM (439^3 complex, 1291 MiB) is counted when the Sim is created.
 budget_prog pmebig 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).charge(0, 1.0).box(10.0, 10.0, 10.0).coulomb("pme", 0.5).sim("verlet", 0.001, 0.0, 0.0, 1);'
 expect_budget pmebig 1024 "PME grid"
-set +e; LMMOLECULE_MAX_MEMORY_MB=-5 "$HOST" --dsl "$WORK/runaway.dslb" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
+set +e; LMMOLECULE_MAX_MEMORY_MB=-5 "$HOST" --lmcode "$WORK/runaway.dslb" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
 [ "$code" = 2 ] && grep -q "positive whole number" "$WORK/badenv.err" || fail "bad LMMOLECULE_MAX_MEMORY_MB: exit $code"
 if [ "$UNAME_S" = Linux ]; then
-  set +e; out="$(ulimit -v 6291456; "$HOST" --dsl "$WORK/runaway.dslb" 2>/dev/null)"; code=$?; set -e
+  set +e; out="$(ulimit -v 6291456; "$HOST" --lmcode "$WORK/runaway.dslb" 2>/dev/null)"; code=$?; set -e
   [ "$code" = 3 ] && echo "$out" | grep -q "limit 4096 MiB" || fail "runaway loop with the default budget under ulimit -v 6 GiB: exit $code ($out)"
   ok "memory budget: runaway, CPU neighbour list and PME grid stop at small budgets; runaway stops at the default 4096 MiB (under ulimit -v 6 GiB)"
 else
@@ -221,16 +222,16 @@ else
   ok "combo example skipped (no lmplot, LMMOLECULE_TEST_NETWORK unset)"
 fi
 
-set +e; "$HOST" --dsl "$WORK/does-not-exist.dslb" >/dev/null 2>&1; code=$?; set -e
+set +e; "$HOST" --lmcode "$WORK/does-not-exist.dslb" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 3 ] || fail "missing bytecode exit code $code, expected 3"
 set +e; "$HOST" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "usage exit code $code, expected 2"
 ok "usage and load errors use exit codes 2 and 3"
 
 # The published compiler injects std; the host embeds only its own schema bytes.
-"$LMSCRIPT" --dsl-signatures schema/lmmolecule.dsl.json --without-std > "$WORK/std-host-only.sig"
-"$LMSCRIPT" --dsl-signatures cpp/std/lmcode-std.schema.json > "$WORK/std-builtins.sig"
-"$HOST" --dsl-signatures > "$WORK/std-registry.sig"
+"$LMSCRIPT" --lmcode-signatures schema/lmmolecule.dsl.json --without-std > "$WORK/std-host-only.sig"
+"$LMSCRIPT" --lmcode-signatures cpp/std/lmcode-std.schema.json > "$WORK/std-builtins.sig"
+"$HOST" --lmcode-signatures > "$WORK/std-registry.sig"
 python3 - "$WORK" <<'PYSTD'
 import pathlib,sys,json
 w=pathlib.Path(sys.argv[1])
@@ -241,7 +242,7 @@ out=str(w/'std-probe.dslb').replace('\\','/')
 (w/'std-probe.lms').write_text('p = _lmcode_ schema='+json.dumps(schema)+';\nlet values = str_list().add("abc");\nif (str_len(values.at(0)) != 3) { let bad = int_list().at(0); }\nend _lmcode_\nsavedsl(p, '+json.dumps(out)+');\n')
 PYSTD
 "$LMSCRIPT" "$WORK/std-probe.lms" > "$WORK/std-probe.log" 2>&1 || { cat "$WORK/std-probe.log"; fail "implicit std compile"; }
-"$HOST" --dsl "$WORK/std-probe.dslb" > "$WORK/std-run.log" 2>&1 || { cat "$WORK/std-run.log"; fail "implicit std runtime"; }
+"$HOST" --lmcode "$WORK/std-probe.dslb" > "$WORK/std-run.log" 2>&1 || { cat "$WORK/std-run.log"; fail "implicit std runtime"; }
 ok "host-only signatures and implicit std runtime"
 
 echo "all $pass checks passed"

@@ -14,7 +14,7 @@ sim.report("build/examples/morse_combo.csv", 10).step(3000);
 md.assert_close((sim.energy() - e0) / e0, 0.0, 0.0001);
 end _lmcode_
 savedsl(sim_prog, "build/morse-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/morse-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/morse-sim.dslb;
 assert(r.code == 0);
 
 draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
@@ -28,7 +28,7 @@ plot.cmd("plot 'build/examples/morse_combo.csv' using 2:3 with lines lw 2 lc rgb
 plot.close();
 end _lmcode_
 savedsl(draw, "build/morse-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/morse-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/morse-draw.dslb;
 assert(r.code == 0);
 println("wrote build/examples/morse_oscillator.png");
 

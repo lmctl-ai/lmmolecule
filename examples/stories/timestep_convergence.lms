@@ -28,7 +28,7 @@ for (k in range(0, 11)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/stories/timestep_convergence-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/stories/timestep_convergence-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/stories/timestep_convergence-sim.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 write_file("build/stories/timestep.csv", split(r.stdout, "{\"ok\"")[0]);
 
@@ -49,6 +49,6 @@ plot.cmd("plot p(x) with lines lw 2 lc rgb '#888888' title 'second-order fit a d
 plot.close();
 end _lmcode_
 savedsl(draw, "build/stories/timestep_convergence-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/stories/timestep_convergence-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/stories/timestep_convergence-draw.dslb;
 assert(r.code == 0, r.stdout + r.stderr);
 println("wrote docs/images/timestep_convergence.png");

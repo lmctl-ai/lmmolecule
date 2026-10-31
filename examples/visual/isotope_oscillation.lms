@@ -22,7 +22,7 @@ for (i in range(0, 401)) {
 }
 end _lmcode_
 savedsl(sim_prog, "build/visuals/isotope_oscillation-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --dsl build/visuals/isotope_oscillation-sim.dslb;
+r = system ${dsl_cli(sim_prog)} --lmcode build/visuals/isotope_oscillation-sim.dslb;
 assert(r.code == 0);
 write_file("build/visuals/isotope_oscillation.csv", "time_ps,light_distance_nm,heavy_distance_nm\n" + split(r.stdout, "{\"ok\"")[0]);
 
@@ -34,7 +34,7 @@ plot.cmd("plot 'build/visuals/isotope_oscillation.csv' every ::1 using 1:2 with 
 plot.close();
 end _lmcode_
 savedsl(draw, "build/visuals/isotope_oscillation-draw.dslb");
-r = system ${dsl_cli(draw)} --dsl build/visuals/isotope_oscillation-draw.dslb;
+r = system ${dsl_cli(draw)} --lmcode build/visuals/isotope_oscillation-draw.dslb;
 assert(r.code == 0);
 
 println("wrote docs/images/isotope_oscillation.png");
