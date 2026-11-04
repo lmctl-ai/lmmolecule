@@ -5,12 +5,14 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
 
 LMSCRIPT="$(scripts/select-compiler.sh)"
-export PATH="$HERE/build:$PATH"
+export PATH="$HERE/${BUILD_DIR:-build}:$PATH"
 
-if { ! command -v lmplot >/dev/null 2>&1 || ! command -v lmcad >/dev/null 2>&1 || ! command -v lmdraw >/dev/null 2>&1; } && [ "${LMMOLECULE_TEST_NETWORK:-}" != 1 ]; then
-  echo "render-all: skipped (lmplot, lmcad and lmdraw are required; set LMMOLECULE_TEST_NETWORK=1 to allow install)"
-  exit 0
-fi
+for renderer in lmplot lmcad lmdraw; do
+  if ! "$renderer" --lmcode-schema --json >/dev/null 2>&1; then
+    echo "render-all: skipped (compatible $renderer required on PATH)"
+    exit 0
+  fi
+done
 
 mkdir -p docs/images
 if ! command -v ffmpeg >/dev/null 2>&1; then

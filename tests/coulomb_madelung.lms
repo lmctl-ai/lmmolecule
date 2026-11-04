@@ -1,7 +1,6 @@
 # NaCl rock-salt crystal lattice electrostatic energy via Particle Mesh Ewald (PME):
 # Verifies the textbook NaCl Madelung constant M = 1.7475645946... on both Reference and CPU platforms,
 # plus direct two-charge Coulomb energy F_coulomb * q1 * q2 / r in vacuum.
-out = ARGV.len() > 0 ? ARGV[0] : "build/coulomb_madelung.dslb";
 p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 let coul = md.eval("one_4pi_eps0");
 
@@ -39,4 +38,5 @@ let madelung_cpu = -u_cpu * d / (256.0 * coul);
 md.assert_close(madelung_cpu, 1.7475645946, 0.00002);
 md.assert_close(madelung_cpu, madelung_ref, 0.00001);
 end _lmcode_
-savedsl(p, out);
+r = run_lmcode(p);
+require(r.ok, json_stringify(r));

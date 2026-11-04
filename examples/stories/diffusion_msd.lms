@@ -1,3 +1,4 @@
+mkdir("build/lmcode-output");
 # Self-diffusion of liquid argon from the Einstein relation D = lim MSD(t) / 6t.
 # 256 Lennard-Jones atoms at Rahman's (1964) state point, 94.4 K and 1.374 g/cm^3, equilibrated
 # with a Langevin bath, then followed under NVE Verlet for 20 ps. gnuplot fits the linear regime
@@ -14,34 +15,35 @@ md.assert_close(liquid.temperature(), 94.4, 15.0);
 # Production under NVE: build the same configuration into a Verlet context via PDB.
 liquid.save_pdb("build/stories/argon_liquid.pdb");
 end _lmcode_
-savedsl(sim_prog, "build/stories/diffusion_msd-equil.dslb");
-r = system ${dsl_cli(sim_prog)} --lmcode build/stories/diffusion_msd-equil.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(sim_prog);
+assert(r.ok, json_stringify(r));
 
 prod = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+file_write("build/lmcode-output/diffusion_msd-prod.txt", "");
 md.platform("cpu");
 let nve = md.system().load_pdb("build/stories/argon_liquid.pdb").lj(0.996, 0.3405, 1.0).sim("verlet", 0.002, 0.0, 0.0, 1);
 nve.velocities(94.4, 22).step(1000);
 nve.mark();
-md.print("time_ps,msd_nm2,temperature_K");
+file_append("build/lmcode-output/diffusion_msd-prod.txt", ("time_ps,msd_nm2,temperature_K") + "\n");
 for (i in range(0, 101)) {
-  md.print(str(0.2 * float(i)) + "," + str(nve.msd()) + "," + str(nve.temperature()));
+  file_append("build/lmcode-output/diffusion_msd-prod.txt", (str(0.2 * float(i)) + "," + str(nve.msd()) + "," + str(nve.temperature())) + "\n");
   nve.step(100);
 }
 end _lmcode_
-savedsl(prod, "build/stories/diffusion_msd-prod.dslb");
-r = system ${dsl_cli(prod)} --lmcode build/stories/diffusion_msd-prod.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
-write_file("build/stories/msd.csv", split(r.stdout, "{\"ok\"")[0]);
+r = run_lmcode(prod);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/diffusion_msd-prod.txt");
+write_file("build/stories/msd.csv", split(output, "{\"ok\"")[0]);
 
-draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot";
+file_write("build/lmcode-output/diffusion_msd-draw.txt", "");
 plot.cmd("set datafile separator ','");
 plot.cmd("set fit quiet; set fit logfile '/dev/null'");
 plot.cmd("msd(t) = 6 * D * t + c; D = 0.002; c = 0.0");
 plot.cmd("fit [4:20] msd(x) 'build/stories/msd.csv' every ::1 using 1:2 via D, c");
 let d_nm2_ps = plot.num("D");
 let d_cm2_s = d_nm2_ps * 0.01;
-plot.echo("D = " + str(d_cm2_s) + " cm^2/s (Rahman 1964: 2.43e-5)");
+file_append("build/lmcode-output/diffusion_msd-draw.txt", ("D = " + str(d_cm2_s) + " cm^2/s (Rahman 1964: 2.43e-5)") + "\n");
 plot.png("docs/images/diffusion_msd.png", 900, 560);
 plot.cmd("set title 'Liquid argon self-diffusion: Einstein relation MSD = 6 D t'");
 plot.cmd("set xlabel 'Time (ps)'; set ylabel 'Mean squared displacement (nm^2)'; set grid; set key top left");
@@ -51,12 +53,12 @@ plot.cmd("set label 'experiment near 90 K: 1.6-2.4e-5 cm^2/s' at 8.5, 0.063 tc r
 plot.cmd("plot 'build/stories/msd.csv' every ::1 using 1:2 with points pt 7 ps 0.7 lc rgb '#1f77b4' title 'MSD of 256 atoms, NVE at 94.4 K, 1.374 g/cm^3', msd(x) with lines lw 2.5 lc rgb '#d62728' title 'linear fit 6 D t + c'");
 plot.close();
 end _lmcode_
-savedsl(draw, "build/stories/diffusion_msd-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode build/stories/diffusion_msd-draw.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
-parts = split(r.stdout, "D = ");
+r = run_lmcode(draw);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/diffusion_msd-draw.txt");
+parts = split(output, "D = ");
 tail = split(parts[1], " ");
 d = num(tail[0]);
 assert(d > 0.000008 && d < 0.00004, "diffusion coefficient out of range: " + str(d));
-println(split(r.stdout, "{\"ok\"")[0]);
+println(split(output, "{\"ok\"")[0]);
 println("wrote docs/images/diffusion_msd.png");

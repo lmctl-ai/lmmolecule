@@ -1,3 +1,4 @@
+mkdir("build/lmcode-output");
 # Liquid water: 216 rigid TIP3P molecules with PME electrostatics, equilibrated at 300 K.
 # A dashboard checks the model against what every water paper reports: the O-O pair correlation
 # (first peak near 2.8 A), the O-H correlation (hydrogen-bond peak near 1.8 A), the kinetic
@@ -7,6 +8,7 @@
 mkdir("build/stories");
 mkdir("docs/images");
 sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+file_write("build/lmcode-output/water_box-sim_prog.txt", "");
 md.platform("cpu");
 md.threads(4);
 let n_side = 6;
@@ -25,33 +27,29 @@ let pe_mol = sim.pe() / n_mol;
 md.assert_close(pe_mol, -41.0, 4.0);
 # OpenMM never wraps coordinates, so each molecule is moved back into the box by its oxygen.
 let L = float(n_side) * 0.31;
-md.print("t,x,y,z,r,g,b");
+file_append("build/lmcode-output/water_box-sim_prog.txt", ("t,x,y,z,r,g,b") + "\n");
 for (k in range(0, int(n_mol))) {
   let o = 3 * k;
   let sx = L * floor(sim.x(o) / L);
   let sy = L * floor(sim.y(o) / L);
   let sz = L * floor(sim.z(o) / L);
-  md.print(str(o) + "," + str(sim.x(o) - sx) + "," + str(sim.y(o) - sy) + "," + str(sim.z(o) - sz) + ",0.92,0.18,0.12");
-  md.print(str(o + 1) + "," + str(sim.x(o + 1) - sx) + "," + str(sim.y(o + 1) - sy) + "," + str(sim.z(o + 1) - sz) + ",0.90,0.92,0.96");
-  md.print(str(o + 2) + "," + str(sim.x(o + 2) - sx) + "," + str(sim.y(o + 2) - sy) + "," + str(sim.z(o + 2) - sz) + ",0.90,0.92,0.96");
+  file_append("build/lmcode-output/water_box-sim_prog.txt", (str(o) + "," + str(sim.x(o) - sx) + "," + str(sim.y(o) - sy) + "," + str(sim.z(o) - sz) + ",0.92,0.18,0.12") + "\n");
+  file_append("build/lmcode-output/water_box-sim_prog.txt", (str(o + 1) + "," + str(sim.x(o + 1) - sx) + "," + str(sim.y(o + 1) - sy) + "," + str(sim.z(o + 1) - sz) + ",0.90,0.92,0.96") + "\n");
+  file_append("build/lmcode-output/water_box-sim_prog.txt", (str(o + 2) + "," + str(sim.x(o + 2) - sx) + "," + str(sim.y(o + 2) - sy) + "," + str(sim.z(o + 2) - sz) + ",0.90,0.92,0.96") + "\n");
 }
-md.print("pe_per_molecule " + str(pe_mol));
+file_append("build/lmcode-output/water_box-sim_prog.txt", ("pe_per_molecule " + str(pe_mol)) + "\n");
 end _lmcode_
-savedsl(sim_prog, "build/stories/water_box-sim.dslb");
-# The CPU simulation and the CAD render both exceed 60 s on slow Intel runners.
-sim_argv = dsl_cli(sim_prog);
-push(sim_argv, "--lmcode");
-push(sim_argv, "build/stories/water_box-sim.dslb");
-r = system(sim_argv, 300000);
-assert(r.code == 0, "water-box simulation exit " + str(r.code) + ": " + r.stdout + r.stderr);
-csv = split(split(r.stdout, "pe_per_molecule")[0], "{\"ok\"")[0];
+r = run_lmcode(sim_prog);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/water_box-sim_prog.txt");
+csv = split(split(output, "pe_per_molecule")[0], "{\"ok\"")[0];
 write_file("build/stories/water_atoms.csv", csv);
-pe_line = split(r.stdout, "pe_per_molecule ")[1];
+pe_line = split(output, "pe_per_molecule ")[1];
 pe_mol = num(split(pe_line, "\n")[0]);
 println("TIP3P potential energy per molecule: " + str(pe_mol) + " kJ/mol");
 box_len = 1.86;
 
-render = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+render = _lmcode_ cli="lmcad";
 scene.background(0.035, 0.055, 0.095);
 scene.ambient(0.35);
 scene.directional_light(-0.6, -1.0, -0.8, 0.85);
@@ -90,15 +88,10 @@ scene.fit_camera(30.0, 1.05);
 scene.render_png("docs/images/water_box_render.png", 900, 560);
 scene.render_ppm("build/stories/water_box.ppm", 420, 420);
 end _lmcode_
-savedsl(render, "build/stories/water_box-render.dslb");
-# Intel macOS needs more than the default 60 s for this 648-atom CAD scene.
-render_argv = dsl_cli(render);
-push(render_argv, "--lmcode");
-push(render_argv, "build/stories/water_box-render.dslb");
-r = system(render_argv, 300000);
-assert(r.code == 0, "water-box CAD render exit " + str(r.code) + ": " + r.stdout + r.stderr);
+r = run_lmcode(render);
+assert(r.ok, json_stringify(r));
 
-draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot";
 plot.png("docs/images/water_box.png", 1000, 760);
 plot.cmd("set multiplot layout 2,2 title '216 TIP3P waters, PME, 300 K: structure, temperature, energy' font ',14'");
 plot.cmd("set grid; set key top right font ',9'");
@@ -121,7 +114,6 @@ plot.cmd("plot 'build/stories/water_box.ppm' binary array=(420,420) skip=15 flip
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "build/stories/water_box-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode build/stories/water_box-draw.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(draw);
+assert(r.ok, json_stringify(r));
 println("wrote docs/images/water_box.png and docs/images/water_box_render.png");

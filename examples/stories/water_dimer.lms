@@ -1,3 +1,4 @@
+mkdir("build/lmcode-output");
 # The water dimer: the hydrogen bond that TIP3P was fitted to reproduce.
 # Two rigid TIP3P molecules are minimized into the hydrogen-bonded dimer (Jorgensen et al. 1983:
 # -6.50 kcal/mol at R(O-O) = 2.74 A), then the acceptor is slid along the O-O axis to trace the
@@ -7,6 +8,7 @@ mkdir("build/stories");
 mkdir("build/rendered");
 mkdir("docs/images");
 sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+file_write("build/lmcode-output/water_dimer-sim_prog.txt", "");
 md.platform("reference");
 let kcal = 4.184;
 let dimer = md.system().water("tip3p", 0.0, 0.0, 0.0).water("tip3p", 0.1714, 0.2214, 0.0).coulomb("none", 0.0);
@@ -21,9 +23,9 @@ let donor = 1;
 if (dsim.distance(2, 3) < dsim.distance(1, 3)) { donor = 2; }
 let angle_deg = dsim.angle_val(0, donor, 3) * 180.0 / md.eval("pi");
 for (i in range(0, 6)) {
-  md.print("atom," + str(i) + "," + str(dsim.x(i)) + "," + str(dsim.y(i)) + "," + str(dsim.z(i)));
+  file_append("build/lmcode-output/water_dimer-sim_prog.txt", ("atom," + str(i) + "," + str(dsim.x(i)) + "," + str(dsim.y(i)) + "," + str(dsim.z(i))) + "\n");
 }
-md.print("summary," + str(r_oo) + "," + str(e_min) + "," + str(angle_deg) + "," + str(donor));
+file_append("build/lmcode-output/water_dimer-sim_prog.txt", ("summary," + str(r_oo) + "," + str(e_min) + "," + str(angle_deg) + "," + str(donor)) + "\n");
 # Scan: move molecule B rigidly along the O-O axis to distance d.
 let ux = (dsim.x(3) - dsim.x(0)) / r_oo;
 let uy = (dsim.y(3) - dsim.y(0)) / r_oo;
@@ -44,18 +46,18 @@ for (k in range(0, 37)) {
     .exclude(0, 1).exclude(0, 2).exclude(1, 2).exclude(3, 4).exclude(3, 5).exclude(4, 5)
     .coulomb("none", 0.0);
   let e = scan.sim("verlet", 0.001, 0.0, 0.0, 1).pe() / kcal;
-  md.print("scan," + str(10.0 * d) + "," + str(e));
+  file_append("build/lmcode-output/water_dimer-sim_prog.txt", ("scan," + str(10.0 * d) + "," + str(e)) + "\n");
 }
 end _lmcode_
-savedsl(sim_prog, "build/stories/water_dimer-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --lmcode build/stories/water_dimer-sim.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(sim_prog);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/water_dimer-sim_prog.txt");
 
 # Parse the host output: six atom records, one summary, 37 scan points.
 atoms = [];
 scan_rows = "";
 summary = [];
-for (line in lines(r.stdout)) {
+for (line in lines(output)) {
   f = split(line, ",");
   if (f[0] == "atom") { push(atoms, [num(f[2]), num(f[3]), num(f[4])]); }
   if (f[0] == "scan") { scan_rows = scan_rows + f[1] + " " + f[2] + "\n"; }
@@ -112,7 +114,7 @@ px3 = px[3]; py3 = py[3]; px4 = px[4]; py4 = py[4]; px5 = px[5]; py5 = py[5];
 min_label = "set label sprintf('minimum %.2f kcal/mol at %.2f A', " + str(e_min) + ", " + str(10.0 * r_oo) + ") at 3.1, -6.9 tc rgb '#d62728'";
 write_file("build/stories/water_dimer_min.csv", str(10.0 * r_oo) + " " + str(e_min) + "\n");
 
-draw = _lmcode_ cli="lmdraw" install="github:lmctl-ai/lmdraw@latest";
+draw = _lmcode_ cli="lmdraw";
 scene.canvas(900, 560, "#0b1220");
 scene.text(40.0, 52.0, 26.0, "TIP3P water dimer at its minimum", "#e8eef5").set_attr("font-weight", "700");
 scene.text(40.0, 80.0, 15.0, "geometry computed by lmmolecule (OpenMM), projected onto the O-H...O plane", "#9db4c8");
@@ -150,12 +152,11 @@ scene.text(612.0, 235.0, 12.0, ${x_text}, "#9db4c8");
 scene.text(40.0, 530.0, 13.0, "red: oxygen, white: hydrogen, dashed: hydrogen bond. Rigid molecules, no cutoff, L-BFGS minimized.", "#7f93a8");
 scene.render_png("build/rendered/water_dimer_geometry.png", 900, 560, 1);
 end _lmcode_
-savedsl(draw, "build/stories/water_dimer-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode build/stories/water_dimer-draw.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(draw);
+assert(r.ok, json_stringify(r));
 copy_file("build/rendered/water_dimer_geometry.png", "docs/images/water_dimer_geometry.png");
 
-plotp = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+plotp = _lmcode_ cli="lmplot";
 plot.png("docs/images/water_dimer.png", 900, 560);
 plot.cmd("set title 'TIP3P water dimer: interaction energy along the O-O axis'");
 plot.cmd("set xlabel 'R(O-O) (A)'; set ylabel 'Interaction energy (kcal/mol)'; set grid; set key top right");
@@ -166,7 +167,6 @@ plot.cmd("set label 'Jorgensen 1983: -6.50 kcal/mol at 2.74 A' at 3.1, -7.5 tc r
 plot.cmd("plot 'build/stories/water_dimer_scan.csv' using 1:2 with linespoints pt 7 ps 0.8 lw 2 lc rgb '#1f77b4' title 'rigid scan, acceptor slid along O-O', 'build/stories/water_dimer_min.csv' using 1:2 with points pt 5 ps 1.8 lc rgb '#d62728' title 'minimized dimer'");
 plot.close();
 end _lmcode_
-savedsl(plotp, "build/stories/water_dimer-plot.dslb");
-r = system ${dsl_cli(plotp)} --lmcode build/stories/water_dimer-plot.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(plotp);
+assert(r.ok, json_stringify(r));
 println("wrote docs/images/water_dimer.png and docs/images/water_dimer_geometry.png");

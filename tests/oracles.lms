@@ -2,7 +2,6 @@
 # 1. free particle under Verlet: x(t) = x0 + v t exactly;
 # 2. harmonic bond period T = 2*pi*sqrt(mu/k) and NVE energy conservation on the mixed-precision CPU platform;
 # 3. canonical position variance in a harmonic well: <x^2> = kB T / k per Cartesian coordinate.
-out = ARGV.len() > 0 ? ARGV[0] : "build/oracles.dslb";
 p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 
 # 1. Free flight: no forces, v = (1.5, -0.5, 0.25) nm/ps for 2 ps.
@@ -54,4 +53,5 @@ let mean_x2 = sum / float(samples);
 # 4608 chi-square(1) samples (some time correlation): standard error ~3%; check within 8%.
 md.assert_close(mean_x2, want, 0.08 * want);
 end _lmcode_
-savedsl(p, out);
+r = run_lmcode(p);
+require(r.ok, json_stringify(r));

@@ -1,3 +1,4 @@
+mkdir("build/lmcode-output");
 # Why MD uses a 1-2 fs step: Verlet energy error vs time step for a Morse diatomic.
 # The bond has a vibrational period of 33.8 fs. For every dt the dimer runs 2 ps and records the
 # largest relative total-energy error; velocity Verlet is second order, so the error grows as dt^2
@@ -5,8 +6,9 @@
 mkdir("build/stories");
 mkdir("docs/images");
 sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+file_write("build/lmcode-output/timestep_convergence-sim_prog.txt", "");
 md.platform("reference");
-md.print("dt_fs,max_rel_energy_error,steps");
+file_append("build/lmcode-output/timestep_convergence-sim_prog.txt", ("dt_fs,max_rel_energy_error,steps") + "\n");
 for (k in range(0, 11)) {
   let dt_fs = md.eval("0.25 * 2^(" + str(k) + " / 2.0)");
   let dt = dt_fs * 0.001;
@@ -24,15 +26,15 @@ for (k in range(0, 11)) {
     let err = md.eval("abs(" + str((sim.energy() - e0) / e0) + ")");
     if (err > worst) { worst = err; }
   }
-  md.print(str(dt_fs) + "," + str(worst) + "," + str(done));
+  file_append("build/lmcode-output/timestep_convergence-sim_prog.txt", (str(dt_fs) + "," + str(worst) + "," + str(done)) + "\n");
 }
 end _lmcode_
-savedsl(sim_prog, "build/stories/timestep_convergence-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --lmcode build/stories/timestep_convergence-sim.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
-write_file("build/stories/timestep.csv", split(r.stdout, "{\"ok\"")[0]);
+r = run_lmcode(sim_prog);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/timestep_convergence-sim_prog.txt");
+write_file("build/stories/timestep.csv", split(output, "{\"ok\"")[0]);
 
-draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot";
 plot.cmd("set datafile separator ','");
 plot.cmd("set fit quiet; set fit logfile '/dev/null'");
 plot.cmd("p(x) = a * x**2; a = 1e-4");
@@ -48,7 +50,6 @@ plot.cmd("set label 'usual 1 fs' at 1.05, 2e-6 tc rgb '#2ca02c' font ',10'");
 plot.cmd("plot p(x) with lines lw 2 lc rgb '#888888' title 'second-order fit a dt^2', 'build/stories/timestep.csv' every ::1 using 1:2 with linespoints pt 7 ps 1.3 lw 2 lc rgb '#1f77b4' title 'measured'");
 plot.close();
 end _lmcode_
-savedsl(draw, "build/stories/timestep_convergence-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode build/stories/timestep_convergence-draw.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(draw);
+assert(r.ok, json_stringify(r));
 println("wrote docs/images/timestep_convergence.png");

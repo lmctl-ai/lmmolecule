@@ -1,7 +1,6 @@
 # Valence forces (harmonic angle, periodic torsion), Lepton custom potentials
 # (Morse custom bond, custom nonbonded, 3D harmonic custom external trap),
 # geometry queries, and XYZ file round-trip.
-out = ARGV.len() > 0 ? ARGV[0] : "build/valence_custom.dslb";
 p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
 let pi = md.eval("pi");
@@ -71,4 +70,5 @@ md.assert_close(loaded.y(1), y1, 0.000001);
 md.assert_close(loaded.z(1), z1, 0.000001);
 md.assert_close(loaded.distance(0, 1), d01, 0.00001);
 end _lmcode_
-savedsl(p, out);
+r = run_lmcode(p);
+require(r.ok, json_stringify(r));

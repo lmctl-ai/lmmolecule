@@ -1,26 +1,28 @@
+mkdir("build/lmcode-output");
 # Run from any working directory: lmscript examples/visual/morse_motion.lms
 # Molecular coordinates are computed by OpenMM, passed as CSV, then drawn by lmcad.
 mkdir("build/visuals");
 mkdir("docs/images");
 compute = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+file_write("build/lmcode-output/morse_motion-compute.txt", "");
 md.platform("reference");
 # A stretched Morse dimer exchanges potential and kinetic energy under NVE.
 let sys = md.system().add_particle(2.0, -0.11, 0.0, 0.0).add_particle(2.0, 0.11, 0.0, 0.0)
   .custom_bond(0, 1, "120.0*(1-exp(-12.0*(r-0.16)))^2");
 let sim = sys.sim("verlet", 0.0001, 0.0, 0.0, 1);
 let e0 = sim.energy();
-md.print("t,x,y,z,r,g,b");
+file_append("build/lmcode-output/morse_motion-compute.txt", ("t,x,y,z,r,g,b") + "\n");
 for (i in range(0, 48)) {
-  md.print(str(i) + "," + str(sim.x(0)) + "," + str(sim.x(1)) + ",0,0.2,0.7,0.95");
+  file_append("build/lmcode-output/morse_motion-compute.txt", (str(i) + "," + str(sim.x(0)) + "," + str(sim.x(1)) + ",0,0.2,0.7,0.95") + "\n");
   sim.step(10);
 }
 md.assert_close((sim.energy()-e0)/e0, 0.0, 0.0001);
 end _lmcode_
-savedsl(compute, "build/visuals/morse_motion-compute.dslb");
-r = system ${dsl_cli(compute)} --lmcode build/visuals/morse_motion-compute.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
-write_file("build/visuals/morse_motion.csv", split(r.stdout, "{\"ok\"")[0]);
-draw = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+r = run_lmcode(compute);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/morse_motion-compute.txt");
+write_file("build/visuals/morse_motion.csv", split(output, "{\"ok\"")[0]);
+draw = _lmcode_ cli="lmcad";
 scene.background(0.035, 0.055, 0.095);
 scene.ambient(0.32);
 scene.supersample(2);
@@ -38,9 +40,8 @@ for (i in range(0, rows.len())) {
   scene.render_png("build/visuals/morse-frame-" + str(1000+i) + ".png", 480, 300);
 }
 end _lmcode_
-savedsl(draw, "build/visuals/morse_motion-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode build/visuals/morse_motion-draw.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(draw);
+assert(r.ok, json_stringify(r));
 # A palette made from all frames avoids flicker. ffmpeg is a standalone tool, not linked.
 if (which("ffmpeg") != null) {
 r = system ffmpeg -v error -y -framerate 12 -start_number 1000 -i build/visuals/morse-frame-%04d.png -filter_complex "[0:v]split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/images/morse-motion.gif;

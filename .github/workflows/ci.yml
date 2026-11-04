@@ -82,9 +82,9 @@ jobs:
         if: env.ONLY_OK == 'true'
         shell: bash
         run: |
-          npm i -g @lmctl-ai/lmctl@0.2.420
+          npm i -g @lmctl-ai/lmctl@0.2.460
           scripts/select-compiler.sh | tee compiler.txt
-          grep -q lmscript compiler.txt || { echo "no v5 compiler available"; exit 1; }
+          grep -q lmscript compiler.txt || { echo "no compatible lmcode v6 compiler available"; exit 1; }
 
       - name: python3 shim (windows)
         if: runner.os == 'Windows' && env.ONLY_OK == 'true'
@@ -99,7 +99,6 @@ jobs:
         if: env.ONLY_OK == 'true'
         shell: bash
         env:
-          LMMOLECULE_TEST_NETWORK: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./test.sh
 

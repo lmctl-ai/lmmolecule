@@ -3,7 +3,7 @@
 lmmolecule is the molecular dynamics host of the *scripted scientific libraries* family (see
 `../../simulation/ROADMAP.md`): OpenMM 8 (Core API, Reference and SIMD CPU platforms, Lepton
 expression compiler, PocketFFT 3D Particle Mesh Ewald, SFMT random number generator, and L-BFGS
-local energy minimizer) statically linked into one executable, driven from lmscript `_dsl_`
+local energy minimizer) statically linked into one executable, driven from lmscript `_lmcode_`
 bytecode through an embedded schema.
 
 - **Scripting only.** There is no user-facing command line beyond `--lmcode`, `--dry-run`,
@@ -16,7 +16,7 @@ bytecode through an embedded schema.
   `third_party/openmm` by `scripts/sync-deps.sh`; nothing of OpenMM is committed.
 - **lmcode-cpp** (`cpp/dslvm.hpp`, bytecode v5) is vendored and pinned by `sdk.lock`.
 - **lmscript** binds programs to the binary with
-  `_dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";` so `lmscript prog.lms`
+  `_lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";` so `lmscript prog.lms`
   is all a user runs; the schema is read from the binary (`lmmolecule --lmcode-schema --json`).
 
 ## Scope boundary

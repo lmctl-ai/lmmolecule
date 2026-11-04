@@ -103,12 +103,11 @@ sim.minimize(0.001, 200)
    .xyz("argon.xyz", 200)
    .step(800);
 end _lmcode_
-savedsl(p, "argon.dslb");
-system ${dsl_cli(p)} --lmcode argon.dslb;
+run_lmcode(p);
 ```
 
 `lmscript argon-fcc.lms` compiles the program against the schema built into the binary and runs it.
-From a clone, `LMMOLECULE_TEST_NETWORK=1 examples/render-all.sh` regenerates every image in `docs/images/`.
+From a clone, `examples/render-all.sh` (with compatible lmplot, lmcad and lmdraw on PATH) regenerates every image in `docs/images/`.
 
 ## What it does
 
@@ -203,3 +202,9 @@ exhausting the machine. Set `LMMOLECULE_MAX_MEMORY_MB` to change it, e.g.
 
 MIT ([LICENSE](LICENSE)). OpenMM Core/Reference/CPU/Lepton are MIT/BSD/public-domain, PocketFFT is
 BSD-3-Clause, SFMT is BSD-3-Clause, L-BFGS is MIT; see [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+
+Execution uses one SDK invocation frame: exit 0 success, 2 CLI/metadata, 3 load/run,
+4 application/output failure. All parts load before any execute; builders stop on
+the first failure. Dry mode validates without running any computation or file
+operation. `md.print` diagnostics use stderr. Data passed to another host uses
+files read after `r.ok`; renderer calls require compatible local binaries.

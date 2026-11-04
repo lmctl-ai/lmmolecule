@@ -3,7 +3,6 @@
 # 2. Md.threads(2) on the CPU platform keeps the harmonic-bond NVE drift below 1e-8 over 10^4 steps;
 # 3. the Lennard-Jones long-range dispersion correction equals the analytic tail
 #    U_tail = (8/3) pi N rho eps sigma^3 [ (sigma/rc)^9 / 3 - (sigma/rc)^3 ] for 108 argon atoms.
-out = ARGV.len() > 0 ? ARGV[0] : "build/thermostats_threads.dslb";
 p = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
 md.platform("reference");
 let temp = 300.0;
@@ -41,4 +40,5 @@ let x3 = md.eval("(" + str(sig) + "/" + str(rc) + ")^3");
 let u_tail = 8.0 / 3.0 * md.eval("pi") * 108.0 * rho * eps * sig * sig * sig * (x3 * x3 * x3 / 3.0 - x3);
 md.assert_close(tail.pe() - plain.pe(), u_tail, 0.02 * md.eval("abs(" + str(u_tail) + ")"));
 end _lmcode_
-savedsl(p, out);
+r = run_lmcode(p);
+require(r.ok, json_stringify(r));

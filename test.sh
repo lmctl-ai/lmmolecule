@@ -28,8 +28,14 @@ GEN=""
 command -v ninja >/dev/null 2>&1 && GEN="-G Ninja"
 # shellcheck disable=SC2086
 cmake -S . -B "$BUILD_DIR" $GEN -DCMAKE_BUILD_TYPE=Release >/dev/null
-cmake --build "$BUILD_DIR" >"$WORK/build.log" 2>&1 || { tail -40 "$WORK/build.log" >&2; fail "build"; }
+cmake --build "$BUILD_DIR" --parallel "${BUILD_JOBS:-2}" >"$WORK/build.log" 2>&1 || { tail -40 "$WORK/build.log" >&2; fail "build"; }
 ok "build"
+export LMSCRIPT_BIN="$LMSCRIPT"
+export LMMOLECULE_HOST="$ROOT/$HOST"
+run_prog() { python3 tests/invocation.py "$@"; }
+capture_prog() { run_prog --capture-only --capture "$WORK/$1.capture" "$WORK/$1.lms" >/dev/null; }
+printf 's = load_schema(cli="lmmolecule");\n' >"$WORK/discover.lms"
+"$LMSCRIPT" "$WORK/discover.lms" >/dev/null || fail "host schema discovery"
 python3 tests/check-host-flags.py schema/lmmolecule.dsl.json "$HOST" || fail "hard host flag cutover"
 
 python3 scripts/check-version.py "$HOST" || fail "package version agreement"
@@ -40,18 +46,19 @@ ok "--version prints exactly '$want_version'"
 python3 scripts/gen-schema.py >/dev/null && git diff --quiet -- schema/lmmolecule.dsl.json 2>/dev/null || [ ! -e .git ] || fail "schema/lmmolecule.dsl.json is stale: run scripts/gen-schema.py"
 ok "schema matches the registrations in cpp/main.cpp"
 python3 scripts/check-visuals.py || fail "visual assets"
-if { command -v lmplot >/dev/null 2>&1 && command -v lmcad >/dev/null 2>&1; } || [ "${LMMOLECULE_TEST_NETWORK:-}" = 1 ]; then
+if lmplot --lmcode-schema --json >/dev/null 2>&1 && lmcad --lmcode-schema --json >/dev/null 2>&1 && lmdraw --lmcode-schema --json >/dev/null 2>&1; then
   examples/render-all.sh || fail "visual examples"
 else
-  ok "visual examples skipped (lmplot/lmcad unavailable, LMMOLECULE_TEST_NETWORK unset)"
+  ok "visual examples skipped (compatible lmplot/lmcad/lmdraw unavailable)"
 fi
 "$HOST" --lmcode-schema --json >"$WORK/schema.json" || fail "embedded schema print"
 cmp -s "$WORK/schema.json" schema/lmmolecule.dsl.json || fail "embedded schema differs from schema/lmmolecule.dsl.json"
 ok "--lmcode-schema --json prints byte-identical embedded schema bytes"
 diff -u <("$LMSCRIPT" --lmcode-signatures schema/lmmolecule.dsl.json) <("$HOST" --lmcode-signatures) || fail "host/compiler signatures differ"
 ok "host registry matches compiler signatures"
-"$HOST" --notices | grep -q "OpenMM" || fail "--notices missing OpenMM text"
-"$HOST" --notices | grep -q "PocketFFT" || fail "--notices missing PocketFFT text"
+"$HOST" --notices >"$WORK/notices.txt" || fail "--notices output"
+grep -q "OpenMM" "$WORK/notices.txt" || fail "--notices missing OpenMM text"
+grep -q "PocketFFT" "$WORK/notices.txt" || fail "--notices missing PocketFFT text"
 ok "--notices prints the third-party license texts"
 
 case "$UNAME_S" in
@@ -87,14 +94,21 @@ mkdir -p build/examples
 n=0
 for src in tests/*.lms examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$LMSCRIPT" "$src" "build/$name.dslb" >"$WORK/$name.log" 2>&1 || { cat "$WORK/$name.log" >&2; fail "$name compile"; }
+  run_prog --check "$src" >"$WORK/$name.log" 2>&1 || { cat "$WORK/$name.log" >&2; fail "$name compile"; }
+  run_prog --capture-only --capture "$WORK/$name.capture" "$src" >"$WORK/$name.capture.log" 2>&1 || { cat "$WORK/$name.capture.log" >&2; fail "$name capture"; }
+  python3 - "$WORK/$name.capture/0.lmcode" schema/lmmolecule.dsl.json <<'PYBYTE'
+import hashlib,pathlib,sys
+b=pathlib.Path(sys.argv[1]).read_bytes()
+assert b[:6] == b'DSLB\0\6'
+assert b[6:38] == hashlib.sha256(pathlib.Path(sys.argv[2]).read_bytes()).digest()
+PYBYTE
   n=$((n+1))
 done
 ok "$n programs compile as bytecode v6"
 for src in tests/*.lms examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$HOST" --lmcode "build/$name.dslb" >"$WORK/$name.out" 2>"$WORK/$name.err" || { cat "$WORK/$name.out" "$WORK/$name.err" >&2; fail "$name run"; }
-  grep -q '"ok": true' "$WORK/$name.out" || { cat "$WORK/$name.out" >&2; fail "$name did not report ok"; }
+  "$HOST" --lmcode "$WORK/$name.capture/0.lmcode" >"$WORK/$name.out" 2>"$WORK/$name.err" || { cat "$WORK/$name.out" "$WORK/$name.err" >&2; fail "$name run"; }
+  grep -q '"ok":true' "$WORK/$name.out" || { cat "$WORK/$name.out" >&2; fail "$name did not report ok"; }
 done
 ok "$n programs run and pass their own assertions"
 # Sim.rdf of a perfect 3x3x3 FCC lattice (written by tests/water_constraints.lms): the first shell holds 12 neighbours.
@@ -109,15 +123,15 @@ nana12="$(awk '!/^#/ && $1 < 0.45 { r1 = $1 - 0.005; r2 = $1 + 0.005; s += $2 * 
 ok "Sim.rdf_pair counts 6 Na-Cl and 12 Na-Na first neighbours in rock salt"
 
 # Dry-run: validate bytecode and schema without running.
-"$HOST" --dry-run --lmcode build/harmonic_bond.dslb >"$WORK/dry.out" || fail "--dry-run failed"
-grep -q '"ok": true' "$WORK/dry.out" || fail "--dry-run did not report ok"
+"$HOST" --dry-run --lmcode "$WORK/harmonic_bond.capture/0.lmcode" >"$WORK/dry.out" || fail "--dry-run failed"
+grep -q '"ok":true' "$WORK/dry.out" || fail "--dry-run did not report ok"
 ok "--dry-run validates bytecode without executing"
 
 # Determinism: the CSV and XYZ files the examples write are identical on rerun.
 for f in build/examples/*.csv build/examples/*.xyz; do echo "$(sha "$f") $f"; done >"$WORK/before.txt"
 for src in examples/*.lms; do
   name="$(basename "$src" .lms)"
-  "$HOST" --lmcode "build/$name.dslb" >/dev/null 2>&1 || fail "$name rerun"
+  "$HOST" --lmcode "$WORK/$name.capture/0.lmcode" >/dev/null 2>&1 || fail "$name rerun"
 done
 for f in build/examples/*.csv build/examples/*.xyz; do echo "$(sha "$f") $f"; done >"$WORK/after.txt"
 cmp -s "$WORK/before.txt" "$WORK/after.txt" || fail "result files differ on rerun"
@@ -126,13 +140,12 @@ ok "all $(wc -l <"$WORK/after.txt" | tr -d ' ') result files are byte-identical 
 # Error paths: each snippet must fail the run with exit 3 and a message naming the problem.
 expect_error() { # name, snippet, expected message fragment
   cat >"$WORK/$1.lms" <<LMS
-p = _dsl_ cli="lmmolecule";
+p = _lmcode_ cli="lmmolecule";
 $2
-end _dsl_
-savedsl(p, "$WORK/$1.dslb");
+end _lmcode_
 LMS
-  "$LMSCRIPT" "$WORK/$1.lms" >/dev/null 2>"$WORK/$1.cerr" || { cat "$WORK/$1.cerr" >&2; fail "$1 compile"; }
-  set +e; out="$("$HOST" --lmcode "$WORK/$1.dslb" 2>/dev/null)"; code=$?; set -e
+  run_prog --check "$WORK/$1.lms" >/dev/null 2>"$WORK/$1.cerr" || { cat "$WORK/$1.cerr" >&2; fail "$1 compile"; }
+  set +e; out="$(run_prog "$WORK/$1.lms" 2>/dev/null)"; code=$?; set -e
   [ "$code" = 3 ] || fail "$1: exit code $code, expected 3 ($out)"
   echo "$out" | grep -q "$3" || fail "$1: message lacks '$3': $out"
 }
@@ -173,15 +186,14 @@ ok "errors stop the program with exit 3 and a clear message (30 cases)"
 # default 4096 MiB under a 6 GiB address-space limit (ulimit only here, never in the host).
 budget_prog() { # name, snippet
   cat >"$WORK/$1.lms" <<LMS
-p = _dsl_ cli="lmmolecule";
+p = _lmcode_ cli="lmmolecule";
 $2
-end _dsl_
-savedsl(p, "$WORK/$1.dslb");
+end _lmcode_
 LMS
-  "$LMSCRIPT" "$WORK/$1.lms" >/dev/null || fail "$1.lms compile"
+  capture_prog "$1" || fail "$1.lms compile"
 }
 expect_budget() { # name, MiB, what
-  set +e; out="$(LMMOLECULE_MAX_MEMORY_MB=$2 "$HOST" --lmcode "$WORK/$1.dslb" 2>"$WORK/$1.err")"; code=$?; set -e
+  set +e; out="$(LMMOLECULE_MAX_MEMORY_MB=$2 "$HOST" --lmcode "$WORK/$1.capture/0.lmcode" 2>"$WORK/$1.err")"; code=$?; set -e
   [ "$code" = 3 ] || fail "$3 under LMMOLECULE_MAX_MEMORY_MB=$2: exit $code, expected 3 ($out)"
   echo "$out" | grep -q "memory budget exceeded" || fail "$3: JSON lacks the budget message: $out"
   grep -q "LMMOLECULE_MAX_MEMORY_MB" "$WORK/$1.err" || fail "$3: no budget message on stderr"
@@ -202,27 +214,27 @@ expect_budget cpunbl 256 "CPU neighbour list"
 # PME grid malloc'd by OpenMM (439^3 complex, 1291 MiB) is counted when the Sim is created.
 budget_prog pmebig 'let s = md.system().add_particle(1.0, 0.0, 0.0, 0.0).charge(0, 1.0).box(10.0, 10.0, 10.0).coulomb("pme", 0.5).sim("verlet", 0.001, 0.0, 0.0, 1);'
 expect_budget pmebig 1024 "PME grid"
-set +e; LMMOLECULE_MAX_MEMORY_MB=-5 "$HOST" --lmcode "$WORK/runaway.dslb" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
+set +e; LMMOLECULE_MAX_MEMORY_MB=-5 "$HOST" --lmcode "$WORK/runaway.capture/0.lmcode" >/dev/null 2>"$WORK/badenv.err"; code=$?; set -e
 [ "$code" = 2 ] && grep -q "positive whole number" "$WORK/badenv.err" || fail "bad LMMOLECULE_MAX_MEMORY_MB: exit $code"
 if [ "$UNAME_S" = Linux ]; then
-  set +e; out="$(ulimit -v 6291456; "$HOST" --lmcode "$WORK/runaway.dslb" 2>/dev/null)"; code=$?; set -e
+  set +e; out="$(ulimit -v 6291456; "$HOST" --lmcode "$WORK/runaway.capture/0.lmcode" 2>/dev/null)"; code=$?; set -e
   [ "$code" = 3 ] && echo "$out" | grep -q "limit 4096 MiB" || fail "runaway loop with the default budget under ulimit -v 6 GiB: exit $code ($out)"
   ok "memory budget: runaway, CPU neighbour list and PME grid stop at small budgets; runaway stops at the default 4096 MiB (under ulimit -v 6 GiB)"
 else
   ok "memory budget: runaway, CPU neighbour list and PME grid stop at small budgets (default-budget run is Linux-only)"
 fi
 
-# Combined pipeline (lmmolecule computes, lmplot draws). Needs lmplot on PATH, or network for install=.
-if command -v lmplot >/dev/null 2>&1 || [ "${LMMOLECULE_TEST_NETWORK:-}" = 1 ]; then
+# Combined pipeline requires a compatible lmplot already on PATH.
+if lmplot --lmcode-schema --json >/dev/null 2>&1; then
   rm -f build/examples/morse_oscillator.png
   "$LMSCRIPT" examples/combo/morse_plot.lms >"$WORK/combo.log" 2>&1 || { cat "$WORK/combo.log" >&2; fail "combo example"; }
   [ -s build/examples/morse_oscillator.png ] || fail "combo example wrote no PNG"
   ok "lmmolecule + lmplot pipeline draws the Morse oscillator"
 else
-  ok "combo example skipped (no lmplot, LMMOLECULE_TEST_NETWORK unset)"
+  ok "combo example skipped (no compatible lmplot on PATH)"
 fi
 
-set +e; "$HOST" --lmcode "$WORK/does-not-exist.dslb" >/dev/null 2>&1; code=$?; set -e
+set +e; "$HOST" --lmcode "$WORK/does-not-exist.lmcode" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 3 ] || fail "missing bytecode exit code $code, expected 3"
 set +e; "$HOST" >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "usage exit code $code, expected 2"
@@ -238,11 +250,16 @@ w=pathlib.Path(sys.argv[1])
 read=lambda name:set((w/name).read_text().splitlines())
 assert read('std-registry.sig')-read('std-builtins.sig') == read('std-host-only.sig'), 'host-only registry drift'
 schema=str(pathlib.Path('schema/lmmolecule.dsl.json').resolve()).replace('\\','/')
-out=str(w/'std-probe.dslb').replace('\\','/')
-(w/'std-probe.lms').write_text('p = _lmcode_ schema='+json.dumps(schema)+';\nlet values = str_list().add("abc");\nif (str_len(values.at(0)) != 3) { let bad = int_list().at(0); }\nend _lmcode_\nsavedsl(p, '+json.dumps(out)+');\n')
+(w/'std-probe.lms').write_text('p = _lmcode_ schema='+json.dumps(schema)+';\nlet values = str_list().add("abc");\nif (str_len(values.at(0)) != 3) { let bad = int_list().at(0); }\nend _lmcode_\n')
 PYSTD
-"$LMSCRIPT" "$WORK/std-probe.lms" > "$WORK/std-probe.log" 2>&1 || { cat "$WORK/std-probe.log"; fail "implicit std compile"; }
-"$HOST" --lmcode "$WORK/std-probe.dslb" > "$WORK/std-run.log" 2>&1 || { cat "$WORK/std-run.log"; fail "implicit std runtime"; }
+run_prog "$WORK/std-probe.lms" > "$WORK/std-run.log" 2>&1 || { cat "$WORK/std-run.log"; fail "implicit std runtime"; }
+grep -q '"ok":true' "$WORK/std-run.log" || fail "implicit std success envelope"
 ok "host-only signatures and implicit std runtime"
 
+python3 tests/protocol.py "$WORK" || fail "invocation protocol"
+ok "one frame, builder order, load-before-effects and dry passivity"
+python3 tests/worker-failure.py "$WORK" || fail "worker failure invocation"
+ok "worker-thread budget error preserves builder part and one frame"
+python3 tests/example-data.py || fail "offline visual data handoffs"
+ok "offline visual calculations and data handoffs"
 echo "all $pass checks passed"

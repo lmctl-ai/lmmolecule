@@ -1,3 +1,4 @@
+mkdir("build/lmcode-output");
 # Melting a crystal: 108 argon atoms heated from 20 K to 158 K in 24 Langevin stages.
 # Each stage raises the bath temperature by 6 K and runs 200 steps (0.4 ps); the frames show the
 # FCC lattice losing long-range order as the temperature crosses the melting line (argon melts at
@@ -8,13 +9,14 @@ mkdir("build/stories");
 mkdir("build/stories/melt");
 mkdir("docs/images");
 sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+file_write("build/lmcode-output/argon_melt-sim_prog.txt", "");
 md.platform("cpu");
 let frames = 24;
 let L = 3.0 * 0.5796;
 let start = md.system().fcc(3, 0.5796, 39.948).lj(0.996, 0.3405, 0.86).sim("langevin", 0.002, 20.0, 5.0, 3);
 start.velocities(20.0, 3).step(100);
 start.save_xyz("build/stories/melt/state.xyz");
-md.print("t,x,y,z,r,g,b");
+file_append("build/lmcode-output/argon_melt-sim_prog.txt", ("t,x,y,z,r,g,b") + "\n");
 for (f in range(0, frames)) {
   let temp = 20.0 + 6.0 * float(f);
   # A fresh Langevin context at each bath temperature continues from the saved coordinates.
@@ -27,17 +29,17 @@ for (f in range(0, frames)) {
     let x = s.x(i) - L * floor(s.x(i) / L);
     let y = s.y(i) - L * floor(s.y(i) / L);
     let z = s.z(i) - L * floor(s.z(i) / L);
-    md.print(str(i) + "," + str(x) + "," + str(y) + "," + str(z) + "," + str(0.2 + 0.75 * warm) + "," + str(0.55 - 0.1 * warm) + "," + str(0.95 - 0.8 * warm));
+    file_append("build/lmcode-output/argon_melt-sim_prog.txt", (str(i) + "," + str(x) + "," + str(y) + "," + str(z) + "," + str(0.2 + 0.75 * warm) + "," + str(0.55 - 0.1 * warm) + "," + str(0.95 - 0.8 * warm)) + "\n");
   }
-  md.print("stage," + str(f) + "," + str(temp) + "," + str(s.temperature()) + "," + str(s.pe() / 108.0));
+  file_append("build/lmcode-output/argon_melt-sim_prog.txt", ("stage," + str(f) + "," + str(temp) + "," + str(s.temperature()) + "," + str(s.pe() / 108.0)) + "\n");
 }
 end _lmcode_
-savedsl(sim_prog, "build/stories/argon_melt-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --lmcode build/stories/argon_melt-sim.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(sim_prog);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/argon_melt-sim_prog.txt");
 frame_rows = [];
 stages = "frame temp_bath_K temp_K pe_per_atom\n";
-for (line in lines(r.stdout)) {
+for (line in lines(output)) {
   if (starts_with(line, "stage,")) { f = split(line, ","); stages = stages + f[1] + " " + f[2] + " " + f[3] + " " + f[4] + "\n"; }
   else if (!starts_with(line, "{") && !starts_with(line, "t,") && line != "") { push(frame_rows, line); }
 }
@@ -48,7 +50,7 @@ n_frames = len(frame_rows) / n_atoms;
 # One lmcad process per frame: the bytecode always reads current.csv and writes current.png/.ppm.
 # The scene is drawn at 0.2 x the nm coordinates: lmcad tessellates with an absolute tolerance, so
 # smaller shapes mesh and render several times faster at the same picture.
-render = _lmcode_ cli="lmcad" install="github:lmctl-ai/lmcad@latest";
+render = _lmcode_ cli="lmcad";
 scene.background(0.035, 0.055, 0.095);
 scene.ambient(0.32);
 scene.directional_light(-0.6, -1.0, -0.8, 0.85);
@@ -77,13 +79,12 @@ scene.camera(36.0, 3.3 * sc, 2.7 * sc, 3.9 * sc, 0.87 * sc, 0.87 * sc, 0.87 * sc
 scene.render_png("build/stories/melt/current.png", 480, 300);
 scene.render_ppm("build/stories/melt/current.ppm", 480, 300);
 end _lmcode_
-savedsl(render, "build/stories/argon_melt-render.dslb");
 for (f in range(0, n_frames)) {
   rows = "t,x,y,z,r,g,b\n";
   for (i in range(0, n_atoms)) { rows = rows + frame_rows[f * n_atoms + i] + "\n"; }
   write_file("build/stories/melt/current.csv", rows);
-  r = system ${dsl_cli(render)} --lmcode build/stories/argon_melt-render.dslb;
-  assert(r.code == 0, r.stdout + r.stderr);
+  r = run_lmcode(render);
+  assert(r.ok, json_stringify(r));
   copy_file("build/stories/melt/current.png", "build/stories/melt/frame-" + str(1000 + f) + ".png");
   if (f == 0) { copy_file("build/stories/melt/current.ppm", "build/stories/melt/first.ppm"); }
   if (f == n_frames - 1) { copy_file("build/stories/melt/current.ppm", "build/stories/melt/last.ppm"); }
@@ -95,7 +96,7 @@ println("wrote docs/images/argon-melt.gif");
 } else { println("Animation skipped: ffmpeg unavailable; still image generated."); }
 
 # Still image: first and last frame side by side with the temperature/energy curve.
-draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot";
 plot.png("docs/images/argon_melt.png", 900, 560);
 plot.cmd("set multiplot title 'Heating 108 argon atoms at constant volume: 20 K to 158 K' font ',13'");
 plot.cmd("set origin 0, 0.45; set size 0.5, 0.5; unset tics; unset key; set xrange [0:480]; set yrange [0:300]; set title '20 K: FCC lattice' font ',11'");
@@ -109,7 +110,6 @@ plot.cmd("plot 'build/stories/melt/stages.csv' every ::1 using 2:4 with linespoi
 plot.cmd("unset multiplot");
 plot.close();
 end _lmcode_
-savedsl(draw, "build/stories/argon_melt-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode build/stories/argon_melt-draw.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
+r = run_lmcode(draw);
+assert(r.ok, json_stringify(r));
 println("wrote docs/images/argon_melt.png");

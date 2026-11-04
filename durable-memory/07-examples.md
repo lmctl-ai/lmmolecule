@@ -1,12 +1,12 @@
 # Examples
 
-Three groups, all self-executing (`savedsl` then `system ${dsl_cli(p)} --lmcode ...`), all writing
+Three groups, all self-executing (`run_lmcode` followed by an `r.ok` check), all writing
 images under `docs/images/` of the current directory, all reproducible with
 `lmctl https://raw.githubusercontent.com/lmctl-ai/lmmolecule/main/examples/<path>.lms`
 from an empty directory. Every example asserts its physical result with `md.assert_close`.
 
 - `examples/*.lms` (4): argon_fcc_melt, nacl_madelung (Madelung 1.747567 by PME), butane_torsion,
-  morse_dimer. They keep the compile-only form (`lmscript file.lms out.dslb`) that `test.sh` uses.
+  morse_dimer. The test harness captures private compiler inputs for standalone controls.
 - `examples/visual/*.lms` (8) and `examples/combo/morse_plot.lms`: the first picture set (lmcad
   renders of coordinate CSVs, lmplot curves, the Morse GIF).
 - `examples/stories/*.lms` (12, added in 0.2.0): worked problems with a known answer.
@@ -30,11 +30,10 @@ from an empty directory. Every example asserts its physical result with `md.asse
 
 ## How the pictures are made
 
-- Data flow host -> picture: the compute block prints CSV lines (`md.print`) or writes files
-  (`Sim.report`, `Sim.rdf`, `Sim.save_pdb`); the outer script splits stdout at `{"ok"` and writes
-  CSV; lmplot reads CSV, lmcad reads `t,x,y,z,r,g,b` keyframe CSV (times strictly increasing: use
+- Data flow host -> picture: the compute block writes files (`file_write`/`file_append`,
+  `Sim.report`, `Sim.rdf`, `Sim.save_pdb`); outer scripts read them after `r.ok`; lmplot reads CSV, lmcad reads `t,x,y,z,r,g,b` keyframe CSV (times strictly increasing: use
   the row index), lmdraw has no file input so numbers reach it as `${name}` tokens interpolated
-  into the `_dsl_` block (whole-number floats become int literals: keep coordinates non-integral).
+  into the `_lmcode_` block (whole-number floats become int literals: keep coordinates non-integral).
 - lmdraw writes only under `build/rendered/`; copy to `docs/images/` afterwards. lmplot's native
   terminal has no `{/Symbol}` font and cannot read PNG; use plain text and `binary array=(w,h)
   skip=15 format='%uchar' with rgbimage` on lmcad PPM output.
@@ -44,7 +43,7 @@ from an empty directory. Every example asserts its physical result with `md.asse
   `Sim.msd` relies on the unwrapped coordinates.
 - Timings (x86_64 laptop, build cached): all stories under 15 s except water_box (about 90 s with
   `md.threads(4)`) and argon_melt (about 30-50 s, lmcad frames). `examples/render-all.sh` runs all
-  25 examples; CI runs it with `LMMOLECULE_TEST_NETWORK=1`.
+  25 examples; CI runs it only with compatible renderers already on PATH.
 - `lmctl autorun` installs the latest *release*; the stories need the 0.2.0 API, so they only work
   through autorun once a `v0.2.0` release exists (local `build/` on `PATH` takes priority).
 

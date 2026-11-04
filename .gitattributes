@@ -7,5 +7,5 @@
 *.jpg binary
 *.gif binary
 *.ico binary
-*.dslb binary
+*.lmcode binary
 *.ttf binary

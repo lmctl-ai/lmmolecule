@@ -1,3 +1,4 @@
+mkdir("build/lmcode-output");
 # Liquid argon density at 1 bar and 94.4 K from an NPT run (Monte Carlo barostat + Langevin).
 # 256 atoms start as a random gas at 0.97 g/cm^3 (a lattice start would stay a metastable crystal
 # this close to the Lennard-Jones triple point); the barostat shrinks the box until the density
@@ -5,6 +6,7 @@
 mkdir("build/stories");
 mkdir("docs/images");
 sim_prog = _lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest";
+file_write("build/lmcode-output/npt_density-sim_prog.txt", "");
 md.platform("cpu");
 let n = 256;
 let mass = 39.948;
@@ -14,26 +16,27 @@ let temp = 94.4;
 let sys = md.system().gas(n, 2.60, mass, 7).lj(0.996, 0.3405, 1.0).dispersion_correction(true).barostat(1.0, temp, 25, 7);
 let sim = sys.sim("langevin", 0.002, temp, 2.0, 7);
 sim.minimize(10.0, 200).velocities(temp, 7);
-md.print("time_ps,density_g_cm3,volume_nm3,temperature_K");
+file_append("build/lmcode-output/npt_density-sim_prog.txt", ("time_ps,density_g_cm3,volume_nm3,temperature_K") + "\n");
 for (i in range(0, 201)) {
   let v = sim.box_volume();
-  md.print(str(0.2 * float(i)) + "," + str(gcc / v) + "," + str(v) + "," + str(sim.temperature()));
+  file_append("build/lmcode-output/npt_density-sim_prog.txt", (str(0.2 * float(i)) + "," + str(gcc / v) + "," + str(v) + "," + str(sim.temperature())) + "\n");
   sim.step(100);
 }
 let final_density = gcc / sim.box_volume();
-md.print("final density " + str(final_density));
+file_append("build/lmcode-output/npt_density-sim_prog.txt", ("final density " + str(final_density)) + "\n");
 md.assert_close(final_density, 1.374, 0.12);
 end _lmcode_
-savedsl(sim_prog, "build/stories/npt_density-sim.dslb");
-r = system ${dsl_cli(sim_prog)} --lmcode build/stories/npt_density-sim.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
-write_file("build/stories/npt.csv", split(split(r.stdout, "final density")[0], "{\"ok\"")[0]);
+r = run_lmcode(sim_prog);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/npt_density-sim_prog.txt");
+write_file("build/stories/npt.csv", split(split(output, "final density")[0], "{\"ok\"")[0]);
 
-draw = _lmcode_ cli="lmplot" install="github:lmctl-ai/lmplot@latest";
+draw = _lmcode_ cli="lmplot";
+file_write("build/lmcode-output/npt_density-draw.txt", "");
 plot.cmd("set datafile separator ','");
 plot.cmd("stats [20:40] 'build/stories/npt.csv' every ::1 using 1:2 nooutput");
 let mean_density = plot.num("STATS_mean_y");
-plot.echo("mean density over 20-40 ps: " + str(mean_density) + " g/cm^3");
+file_append("build/lmcode-output/npt_density-draw.txt", ("mean density over 20-40 ps: " + str(mean_density) + " g/cm^3") + "\n");
 plot.png("docs/images/npt_density.png", 900, 560);
 plot.cmd("set title 'NPT argon at 1 bar, 94.4 K: the barostat finds the liquid density from a random gas'");
 plot.cmd("set xlabel 'Time (ps)'; set ylabel 'Density (g/cm^3)'; set grid; set key off");
@@ -45,8 +48,8 @@ plot.cmd("set label sprintf('mean over 20-40 ps: %.3f g/cm^3', STATS_mean_y) at 
 plot.cmd("plot 'build/stories/npt.csv' every ::1 using 1:2 with lines lw 2 lc rgb '#1f77b4' title 'instantaneous density (256 atoms, LJ cutoff 1 nm + tail correction, MC barostat every 25 steps)'");
 plot.close();
 end _lmcode_
-savedsl(draw, "build/stories/npt_density-draw.dslb");
-r = system ${dsl_cli(draw)} --lmcode build/stories/npt_density-draw.dslb;
-assert(r.code == 0, r.stdout + r.stderr);
-println(split(r.stdout, "{\"ok\"")[0]);
+r = run_lmcode(draw);
+assert(r.ok, json_stringify(r));
+output = read_file("build/lmcode-output/npt_density-draw.txt");
+println(split(output, "{\"ok\"")[0]);
 println("wrote docs/images/npt_density.png");

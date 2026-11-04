@@ -1,6 +1,6 @@
 # lmmolecule durable memory
 
-`lmmolecule` is a static, dependency-free lmscript `_dsl_` host embedding OpenMM 8.2.0 and Lepton for molecular dynamics, energy minimization, force fields, and PDB/trajectory analysis.
+`lmmolecule` is a static, dependency-free lmscript `_lmcode_` host embedding OpenMM 8.2.0 and Lepton for molecular dynamics, energy minimization, force fields, and PDB/trajectory analysis.
 Repository: https://github.com/lmctl-ai/lmmolecule.
 
 ## 60-second takeover
@@ -36,7 +36,7 @@ scripts/sync-sdk.sh                   # Refetches pinned cpp/dslvm.hpp and verif
 ## Adding an example or function
 
 ### Adding an example
-1. Create `examples/<name>.lms` using `_dsl_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest"`.
+1. Create `examples/<name>.lms` using `_lmcode_ cli="lmmolecule" install="github:lmctl-ai/lmmolecule@latest"`.
 2. Run script: `build/lmmolecule run examples/<name>.lms` or via `lmscript`.
 3. Add the example to `./test.sh` test run list.
 4. Save visual output to `docs/images/<name>.png` and update `README.md` demo table with `lmctl autorun` command.
@@ -50,4 +50,6 @@ scripts/sync-sdk.sh                   # Refetches pinned cpp/dslvm.hpp and verif
 
 Releases are triggered automatically on push of a `v*` tag. The release workflow builds across Linux x64/arm64, macOS x64/arm64, and Windows x64, publishing platform binaries with `SHA256SUMS`, `LICENSE`, and `THIRD_PARTY_NOTICES`. See `next-release-version.md` before tagging.
 
-Compiler >=0.2.420 resolves std from the pinned SDK bundle by default; host schema bytes remain host-only, with full and `--without-std` parity plus a standard-only runtime probe in `test.sh`.
+Compiler >=0.2.460 resolves std from the pinned SDK bundle by default; host schema bytes remain host-only, with full and `--without-std` parity plus a standard-only runtime probe in `test.sh`.
+
+- [11-invocation-envelope.md](11-invocation-envelope.md): invocation framing, worker failures, dry passivity and file handoffs.

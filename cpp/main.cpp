@@ -1,7 +1,10 @@
 // lmmolecule: OpenMM 8 (Core API, Reference and CPU platforms, Lepton, PocketFFT, L-BFGS)
-// behind an lmscript `_dsl_` schema. Scripting only: the executable has no user-facing CLI
+// behind an lmscript `_lmcode_` schema. Scripting only: the executable has no user-facing CLI
 // besides --lmcode and the standard schema/version/notices queries.
 #include <algorithm>
+#include <atomic>
+#include <optional>
+#include <thread>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -876,7 +879,7 @@ void register_host(dslvm::Registry &r, Host &h) {
     return Value::none();
   });
   method(r, "Md", "print", {"string"}, "void", [](void *, Args &a) {
-    std::cout << a[0].s << std::endl;
+    std::cerr << a[0].s << std::endl;
     return Value::none();
   });
   method(r, "Md", "version", {}, "string", [](void *, Args &) {
@@ -1619,17 +1622,32 @@ const char *usage =
 
 // The CPU platform computes forces on OpenMM's worker thread (ThreadPool, even with Threads=1), whose
 // thread body has no handler: the budget running out there (say, while the neighbour list grows) ends
-// in std::terminate. Report that like any run error (JSON line, exit 3) instead of aborting.
+// in std::terminate. Report that like any run error (invocation frame, exit 3) instead of aborting.
 std::terminate_handler previous_terminate = nullptr;
+std::atomic<dslvm::InvocationResults *> active_results{nullptr};
+std::atomic<size_t> active_part{0};
+std::atomic_flag terminating = ATOMIC_FLAG_INIT;
+std::unique_ptr<char[]> failure_reserve;
 [[noreturn]] void on_terminate() {
   if (std::exception_ptr ep = std::current_exception()) {
     try {
       std::rethrow_exception(ep);
     } catch (const membudget::Exceeded &e) {
-      dslvm::report_error("run", dslvm::Error(e.what()));
+      // Only one worker may emit the terminal frame. Other failing workers wait
+      // for that writer to flush and exit the process.
+      if (terminating.test_and_set()) for (;;) std::this_thread::yield();
+      failure_reserve.reset();
+      auto *results = active_results.load();
+      int code;
+      if (results) {
+        results->fail(active_part.load(), "run", dslvm::Error(e.what()));
+        code = results->write_frame(std::cout);
+      } else {
+        code = dslvm::failure_frame("run", dslvm::Error(e.what()));
+      }
       std::cout.flush();
       std::cerr.flush();
-      std::_Exit(3);
+      std::_Exit(code);
     } catch (...) {
     }
   }
@@ -1669,7 +1687,7 @@ int main(int argc, char **argv) {
       return std::cout ? 0 : 4;
     }
     std::cerr << usage;
-    return 2;
+    return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "invalid execution arguments"));
   }
   if (argc == 2 && a1 == "--lmcode-signatures") {
     for (const auto &s : reg.signatures()) std::cout << s << "\n";
@@ -1684,60 +1702,76 @@ int main(int argc, char **argv) {
   }
   if (argc <= dsl_arg || std::string(argv[dsl_arg]) != "--lmcode") {
     std::cerr << usage;
-    return 2;
+    return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "invalid execution arguments"));
   }
   std::vector<std::string> files;
   for (int i = dsl_arg + 1; i < argc; i++) {
     if (std::string(argv[i]) == "--dry-run") {
       if (dry) {
         std::cerr << usage;
-        return 2;
+        return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "invalid execution arguments"));
       }
       dry = true;
     } else if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) {
       std::cerr << usage;
-      return 2;
+      return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "invalid execution arguments"));
     } else {
       files.push_back(argv[i]);
     }
   }
   if (files.empty()) {
     std::cerr << usage;
-    return 2;
+    return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "invalid execution arguments"));
   }
 
-  if (!membudget::configure("lmmolecule", "LMMOLECULE_MAX_MEMORY_MB")) {
-    std::cerr << usage;
-    return 2;
-  }
-  previous_terminate = std::set_terminate(on_terminate);
+  std::optional<dslvm::InvocationResults> holder;
+  try {
+    if (dry && !std::getenv("LMCODE_INVOCATION_FILE"))
+      holder.emplace(dslvm::InvocationResults::from_command(files, true));
+    else holder.emplace(dslvm::InvocationResults::from_command(files));
+  } catch (const dslvm::Error &e) { return dslvm::failure_frame("cli", e); }
+  auto &results = *holder;
+  if (dry && !results.dry())
+    return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "--dry-run contradicts real-mode invocation metadata"));
+  if (!membudget::configure("lmmolecule", "LMMOLECULE_MAX_MEMORY_MB"))
+    return dslvm::failure_frame("cli", dslvm::Error("CLI_USAGE", "invalid LMMOLECULE_MAX_MEMORY_MB"));
   const std::string schema(reinterpret_cast<const char *>(lmmolecule::embedded_schema),
                            lmmolecule::embedded_schema_size);
   dslvm::Context context;
   context.set("md", &host);
-  std::vector<dslvm::Program> programs;
-  for (const auto &file : files) {
+  dslvm::ResultContract contract;
+  try { contract = dslvm::ResultContract::from_schema(schema); }
+  catch (const dslvm::Error &e) { results.fail(std::nullopt, "load", e); return results.write_frame(std::cout); }
+  std::vector<std::pair<size_t, dslvm::Program>> programs;
+  // Validate every registered file before any part can produce effects.
+  for (const auto &part : results.registrations()) {
+    try { programs.emplace_back(part.index, dslvm::Program::load(dslvm::read_file(part.file), schema, reg)); }
+    catch (const dslvm::Error &e) { results.fail(part.index, "load", e); return results.write_frame(std::cout); }
+    catch (const std::exception &e) { results.fail(part.index, "load", dslvm::Error(e.what())); return results.write_frame(std::cout); }
+  }
+  // Keep headroom for serializing failure after the arena has exhausted its budget.
+  try { failure_reserve = std::make_unique<char[]>(1 << 20); }
+  catch (const std::exception &e) { results.fail(std::nullopt, "run", dslvm::Error(e.what())); return results.write_frame(std::cout); }
+  active_results.store(&results);
+  previous_terminate = std::set_terminate(on_terminate);
+  for (auto &[index, program] : programs) {
+    active_part.store(index);
     try {
-      programs.push_back(dslvm::Program::load(dslvm::read_file(file), schema, reg));
+      results.select(index, reg, contract);
+      if (!results.dry()) program.run(context, reg);
+      results.complete(index);
     } catch (const dslvm::Error &e) {
-      return dslvm::report_error("load", e);
+      failure_reserve.reset();
+      results.fail(index, e.code == "APP_FAIL" ? "app" : "run", e);
+      break;
     } catch (const std::exception &e) {
-      return dslvm::report_error("load", dslvm::Error(e.what()));
+      failure_reserve.reset();
+      results.fail(index, "run", dslvm::Error(e.what()));
+      break;
     }
   }
-  if (dry) {
-    dslvm::report_ok();
-    return 0;
-  }
-  for (const auto &p : programs) {
-    try {
-      p.run(context, reg);
-    } catch (const dslvm::Error &e) {
-      return dslvm::report_error("run", e);
-    } catch (const std::exception &e) {
-      return dslvm::report_error("run", dslvm::Error(e.what()));  // budget in the VM
-    }
-    dslvm::report_ok();
-  }
-  return 0;
+  std::set_terminate(previous_terminate);
+  active_results.store(nullptr);
+  failure_reserve.reset();
+  return results.write_frame(std::cout);
 }
