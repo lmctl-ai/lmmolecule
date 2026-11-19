@@ -6,6 +6,8 @@ Molecular dynamics with OpenMM, scripted in lmscript: worked problems with known
 [![Latest release](https://img.shields.io/github/v/release/lmctl-ai/lmmolecule?label=release)](https://github.com/lmctl-ai/lmmolecule/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**Documentation:** [Quick reference](https://www.lmctl.com/tools/lmmolecule/) · [LLM skill](https://www.lmctl.com/tools/lmmolecule/skill.html) · [Guide](https://www.lmctl.com/tools/lmmolecule/guide.html) · [Reference](https://www.lmctl.com/tools/lmmolecule/reference.html)
+
 | Liquid water, checked against the textbook | One potential, three phases | Diffusion from the Einstein relation |
 | --- | --- | --- |
 | ![216 TIP3P waters: g(r), temperature, energy, render](docs/images/water_box.png) | ![Argon g(r) for solid, liquid and gas](docs/images/argon_rdf_phases.png) | ![Mean squared displacement of liquid argon](docs/images/diffusion_msd.png) |
